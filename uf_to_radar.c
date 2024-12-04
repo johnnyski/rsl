@@ -24,7 +24,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <math.h>
 
 /* This allows us to use RSL_ftype, RSL_f_list, RSL_invf_list from rsl.h. */
 #define USE_RSL_VARS
@@ -32,8 +31,7 @@
 
 extern int radar_verbose_flag;
 /* Changed old buffer size (16384) for larger dualpol files.  BLK 5/18/2011 */
-/* Changed old buffer size (20000) for larger dualpol files.  BLK 3/20/2014 */
-typedef short UF_buffer[26000]; /* Some UF files are bigger than 4096
+typedef short UF_buffer[20000]; /* Some UF files are bigger than 4096
                                  * that the UF doc's specify.
                                  */
 
@@ -89,67 +87,6 @@ void swap2(short *buf, int n)
   }
 }
 
-static void put_start_time_in_radar_header(Radar *radar)
-{
-  /* Get the earliest ray time and store it in radar header.
-   * The search is necessary because rays are not always in chronological order.
-   * For example, we have received data in which rays were apparently sorted by
-   * azimuth in some upstream software.  This results in the ray times being out
-   * of order, because a sweep rarely actually begins at zero degrees.
-   *
-   * Written by Bart Kelley, SSAI, June 19, 2013
-   */
-
-  int i = 0;
-  Sweep *sweep;
-  Ray   *ray;
-
-  int prevdate, thisdate;
-  float prevtime, thistime;
-
-  /* Get first sweep of first available field. */
-  for (i=0; i < MAX_RADAR_VOLUMES; i++) {
-      if ((sweep = radar->v[i]->sweep[0]) != NULL) break;
-  }
-  /* This shouldn't happen. */
-  if (i >= MAX_RADAR_VOLUMES) {
-      fprintf(stderr,"put_start_time_in_radar_header: No radar volumes contain "
-              "sweep at index 0.\n");
-      return;
-  }
-
-  /* Get first ray and its time. */
-  i = 0;
-  while (!sweep->ray[i] && i < sweep->h.nrays) i++;
-  ray = sweep->ray[i];
-  prevdate = ray->h.year * 10000 + ray->h.month * 100 + ray->h.day;
-  prevtime = ray->h.hour * 10000 + ray->h.minute * 100 + ray->h.sec;
-
-  /* Compare times of remaining rays for earliest time. */
-  for (i=0; i<sweep->h.nrays; i++) {
-    ray = sweep->ray[i];
-    thisdate = ray->h.year * 10000 + ray->h.month * 100 + ray->h.day;
-    thistime = ray->h.hour * 10000 + ray->h.minute * 100 + ray->h.sec;
-    if (thisdate == prevdate) {
-      if (thistime < prevtime) prevtime = thistime;
-    }
-    else if (thisdate < prevdate) {
-      prevdate = thisdate;
-      prevtime = thistime;
-    }
-  }
-
-  radar->h.year = prevdate / 10000;
-  radar->h.month = prevdate / 100 % 100;
-  radar->h.day = prevdate % 100;
-  radar->h.hour = (int) prevtime / 10000;
-  radar->h.minute = (int) prevtime / 100 % 100;
-  radar->h.sec = fmod(prevtime,100.);
-}
-
-/* These are used in uf_into_radar, set in caller RSL_uf_to_radar_fp. */
-static int pulled_time_from_first_ray;
-static int need_scan_mode;
 
 /********************************************************************/
 /*********************************************************************/
@@ -202,6 +139,8 @@ int uf_into_radar(UF_buffer uf, Radar **the_radar)
   float scale_factor;
   
   int nfields, isweep, ifield, iray, i, j, m;
+  static int pulled_time_from_first_ray = 0;
+  static int need_scan_mode = 1;
   char *field_type; /* For printing the field type upon error. */
   short proj_name[4];
   Ray *ray;
@@ -211,7 +150,6 @@ int uf_into_radar(UF_buffer uf, Radar **the_radar)
   short missing_data;
   Volume *new_volume;
   int nbins;
-  float frequency;
   extern int rsl_qfield[];
   extern int *rsl_qsweep; /* See RSL_read_these_sweeps in volume.c */
   extern int rsl_qsweep_max;
@@ -398,10 +336,6 @@ int uf_into_radar(UF_buffer uf, Radar **the_radar)
         radar->h.lond = uf_ma[21];
         radar->h.lonm = uf_ma[22];
         radar->h.lons = uf_ma[23] / 64.0;
-        /* Note that radar header time is now handled at end of ingest by
-         * function put_start_time_in_radar_header().  The values below are
-         * replaced. --BLK, 6/19/13
-         */
         radar->h.year  = ray->h.year;
         radar->h.month = ray->h.month;
         radar->h.day   = ray->h.day;
@@ -458,14 +392,7 @@ int uf_into_radar(UF_buffer uf, Radar **the_radar)
             sweep->h.vert_half_bw = .5;
         }
           
-      frequency = uf_fh[9];
-      /* This corrects an error in v1.43 and earlier where frequency was
-       * multiplied by 64.  Correct units for UF are MHz; radar structure
-       * uses GHz.
-       */
-      if (frequency < 1000.) frequency = frequency/64.;
-      else frequency = frequency/1000.;
-      ray->h.frequency    = frequency;
+      ray->h.frequency    = uf_fh[9]  / 64.0;
       ray->h.wavelength   = uf_fh[11] / 64.0 / 100.0;  /* cm to m. */
       ray->h.pulse_count  = uf_fh[12];
       if (ifield == DZ_INDEX || ifield == ZT_INDEX) {
@@ -557,10 +484,8 @@ Radar *RSL_uf_to_radar_fp(FILE *fp)
   enum UF_type uf_type;
 #define NEW_BUFSIZ 16384
 
-  radar = NULL;
-  pulled_time_from_first_ray = 0;
-  need_scan_mode = 1;
 
+  radar = NULL;
   /* setvbuf(fp,NULL,_IOFBF,(size_t)NEW_BUFSIZ); * Faster i/o? */
   if (fread(magic.buf, sizeof(char), 6, fp) <= 0) return NULL;
 /*
@@ -577,12 +502,6 @@ Radar *RSL_uf_to_radar_fp(FILE *fp)
     /* Handle first record specially, since we needed magic information. */
     nbytes = magic.word;
     if (little_endian()) swap_4_bytes(&nbytes);
-    if (nbytes > sizeof(UF_buffer)) {
-        fprintf(stderr,"\nRSL_uf_to_radar_fp: Record size (%d bytes) exceeds "
-                "UF_buffer (%d bytes).\n", nbytes,sizeof(UF_buffer));
-        fprintf(stderr,"Increase size of UF_buffer in uf_to_radar.c\n");
-        return NULL;
-    }
     memcpy(uf, &magic.buf[4], 2);
     (void)fread(&uf[1], sizeof(char), nbytes-2, fp);
     if (little_endian()) swap_uf_buffer(uf);
@@ -606,12 +525,6 @@ Radar *RSL_uf_to_radar_fp(FILE *fp)
     /* Handle first record specially, since we needed magic information. */
     sbytes = magic.sword;
     if (little_endian()) swap_2_bytes(&sbytes);
-    if (sbytes > sizeof(UF_buffer)) {
-        fprintf(stderr,"\nRSL_uf_to_radar_fp: Record size (%d bytes) exceeds "
-                "UF_buffer (%d bytes).\n", sbytes,sizeof(UF_buffer));
-        fprintf(stderr,"Increase size of UF_buffer in uf_to_radar.c\n");
-        return NULL;
-    }
     memcpy(uf, &magic.buf[2], 4);
     (void)fread(&uf[2], sizeof(char), sbytes-4, fp);
     if (little_endian()) swap_uf_buffer(uf);
@@ -635,12 +548,7 @@ Radar *RSL_uf_to_radar_fp(FILE *fp)
     /* Handle first record specially, since we needed magic information. */
     memcpy(&sbytes, &magic.buf[2], 2); /* Record length is in word #2. */
     if (little_endian()) swap_2_bytes(&sbytes); /* # of 2 byte words. */
-    if (sbytes > sizeof(UF_buffer)) {
-        fprintf(stderr,"\nRSL_uf_to_radar_fp: Record size (%d bytes) exceeds "
-                "UF_buffer (%d bytes).\n", sbytes,sizeof(UF_buffer));
-        fprintf(stderr,"Increase size of UF_buffer in uf_to_radar.c\n");
-        return NULL;
-    }
+
     memcpy(uf, &magic.buf[0], 6);
     (void)fread(&uf[3], sizeof(short), sbytes-3, fp);
     if (little_endian()) swap_uf_buffer(uf);
@@ -660,7 +568,6 @@ Radar *RSL_uf_to_radar_fp(FILE *fp)
   case NOT_UF: return NULL; break;
   }
   radar = reset_nsweeps_in_all_volumes(radar);
-  put_start_time_in_radar_header(radar);
   radar = RSL_prune_radar(radar);
 
   return radar;

@@ -1,6 +1,6 @@
 ## Process w/ automake.  Or, autoreconf; make ##
 AUTOMAKE_OPTIONS = foreign
-SUBDIRS = . colors doc examples wsr88d_decode_ar2v
+SUBDIRS = . colors doc examples
 INCLUDES = -I. -I$(srcdir) -I$(prefix)/include -I$(prefix)/toolkit/include
 
 includedir = $(prefix)/include 
@@ -8,7 +8,7 @@ colordir = $(libdir)/colors
 
 lib_LTLIBRARIES = librsl.la
 
-librsl_la_LDFLAGS = -version-info 1:50
+librsl_la_LDFLAGS = -version-info 1:42
 librsl_la_SOURCES = \
 $(rapic_c) $(radtec_c)\
 dorade.c dorade_print.c dorade_to_radar.c\
@@ -20,8 +20,6 @@ edge_to_radar.c \
  ray_indexes.c anyformat_to_radar.c get_win.c endian.c mcgill_to_radar.c \
  mcgill.c interp.c toga.c wsr88d.c wsr88d_get_site.c wsr88d_m31.c \
  gzip.c prune.c reverse.c fix_headers.c \
- wsr88d_align_split_cut_rays.c wsr88d_merge_split_cuts.c \
- wsr88d_remove_sails_sweep.c \
  nsig_to_radar.c nsig.c nsig2_to_radar.c \
  africa_to_radar.c africa.c \
  radar_to_hdf_2.c hdf_to_radar.c toolkit_memory_mgt.c \

@@ -160,18 +160,6 @@ mcgFile_t *mcgFileOpen(int *code, char *filename)
 	  return(NULL);
 	  }
    
-   if (little_endian()) {
-       swap_2_bytes(&file->head.vol_scan_format);
-       swap_2_bytes(&file->head.day);
-       swap_2_bytes(&file->head.month);
-       swap_2_bytes(&file->head.year);
-       swap_2_bytes(&file->head.hour);
-       swap_2_bytes(&file->head.min);
-       swap_2_bytes(&file->head.sec);
-       swap_2_bytes(&file->head.num_records);
-       swap_2_bytes(&file->head.csp_rec);
-   }
-
    /* Check validity of some file header values. If
 	  not valid, we assume the file is garbled beyond legibility. */
    if ((file->head.vol_scan_format < 1) || (file->head.vol_scan_format > 4)

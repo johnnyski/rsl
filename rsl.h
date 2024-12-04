@@ -27,7 +27,7 @@
 #include "config.h"
 #endif
 
-#define RSL_VERSION_STR "v1.50"
+#define RSL_VERSION_STR "v1.42"
 
 /**********************************************************************/
 /* Configure: Define USE_TWO_BYTE_PRECISION to have RSL store internal*/
@@ -46,7 +46,7 @@
 /*            so you shouldn't have to modify anything here.          */
 /**********************************************************************/
 #ifndef COLORDIR
-#define COLORDIR "/home/kelley/trmm/lib/colors"
+#define COLORDIR "/usr/local/trmm/GVBOX/lib/colors"
 #endif
 
 /* These are the color table indexes. See RSL_set/get_color_table. */
@@ -103,9 +103,9 @@ enum Rsl_magic_num {
 
 /* File format types recognized by RSL. */
 enum File_type {UNKNOWN, WSR88D_FILE, UF_FILE, LASSEN_FILE,
-                TOGA_FILE, NSIG_FILE_V1, NSIG_FILE_V2,
-                RSL_FILE, MCGILL_FILE, HDF_FILE, RAPIC_FILE,
-                RADTEC_FILE, DORADE_FILE, RAINBOW_FILE};
+				TOGA_FILE, NSIG_FILE_V1, NSIG_FILE_V2,
+				RSL_FILE, MCGILL_FILE, HDF_FILE, RAPIC_FILE,
+                RADTEC_FILE, EDGE_FILE, DORADE_FILE, RAINBOW_FILE};
 
 /* Pick a BADVAL that is out of range. That is, the range
  * of the conversion cannot include these reserved values.
@@ -189,7 +189,7 @@ typedef struct {
 
 
 typedef struct _azimuth_hash {
-  Ray *ray; 
+  Ray *ray;	
   struct _azimuth_hash *next, *ray_high, *ray_low;
 } Azimuth_hash;
 
@@ -200,9 +200,11 @@ typedef struct {
 
 
 typedef struct {
-  int sweep_num;   /* Integer sweep number. */
-  float elev;      /* Elevation angle for sweep. Value is -999 for RHI. */
-  float azimuth;   /* Azimuth for RHI. Value is -999 for PPI. */
+  int sweep_num;   /* Integer sweep number.  This may be redundant, since
+                    * this will be the same as the Volume.sweep array index.*/
+  float elev;      /* Elevation angle (mean) for the sweep. Value is -999 for
+                    * RHI. */
+  float azimuth;   /* Azimuth for the sweep (RHI). Value is -999 for PPI. */
   float beam_width;  /* This is in the ray header too. */
   float vert_half_bw;  /* Vertical beam width divided by 2 */
   float horz_half_bw;  /* Horizontal beam width divided by 2 */
@@ -213,7 +215,7 @@ typedef struct {
 } Sweep_header;
 
 typedef struct {           
-  Sweep_header h;   
+  Sweep_header h;	
   Ray **ray;               /* ray[0..nrays-1]. */
 } Sweep;
 
@@ -226,8 +228,9 @@ typedef struct {
 } Volume_header;
 
 typedef struct {
-    Volume_header h;           /* Specific info for each elev. */
-    Sweep **sweep;             /* sweep[0..nsweeps-1]. */
+	Volume_header h;           /* Specific info for each elev. */
+	                           /* Includes resolution: km/bin. */
+	Sweep **sweep;             /* sweep[0..nsweeps-1]. */
 } Volume;
 
 
@@ -294,21 +297,21 @@ typedef Range Slice_value;
 
 typedef struct 
 {
-    float lat, lon;
-    float dx, dy, dz;
-    int nx, ny, nz;
-    char *data_type;
-    Carpi **carpi;         /* Pointers to carpi[0] thru carpi[nz-1] */
+	float lat, lon;
+	float dx, dy, dz;
+	int nx, ny, nz;
+	char *data_type;
+	Carpi **carpi;         /* Pointers to carpi[0] thru carpi[nz-1] */
 } Cube;
 
 typedef struct
 {
-    float dx, dy;
-    int nx, ny;
-    char *data_type;
+	float dx, dy;
+	int nx, ny;
+	char *data_type;
   float (*f)(Slice_value x);    /* Data conversion function. f(x). */
   Slice_value (*invf)(float x); /* Data conversion function. invf(x). */
-    Slice_value **data;           /* data[ny][nx]. */
+	Slice_value **data;           /* data[ny][nx]. */
 } Slice;
 
 typedef struct {
@@ -327,14 +330,15 @@ typedef struct {
   int hour, minute;
   float sec; /* Second plus fractional part. */
   char radar_type[50]; /* Type of radar.  Use for QC-ing the data.
-                        * Supported types are:
+	                    * Supported types are:
                         * "wsr88d", "lassen", "uf",
                         * "nsig", "mcgill",
-                        * "kwajalein", "rsl", "toga",
+	                    * "kwajalein", "rsl", "toga",
                         * "rapic", (rapic is Berrimah Austrailia)
-                        * "radtec", (SPANDAR radar at Wallops Is, VA)
-                        * "dorade",
-                        * "south_africa".
+						* "radtec", (SPANDAR radar at Wallops Is, VA)
+						* "EDGE",
+						* "dorade",
+						* "south_africa".
                         * Set by appropriate ingest routine.
                         */
   int nvolumes;
@@ -394,13 +398,11 @@ typedef struct {
                       *28 = VT_INDEX = Radial Velocity Combined  (DORADE)
                       *29 = NP_INDEX = Normalized Coherent Power (DORADE)
                       *30 = HC_INDEX = HydroClass (Sigmet)
-                      *31 = VC_INDEX = Radial Velocity Corrected (Sigmet)
-                      *32 = V2_INDEX = Radial Velocity for VCP 121 second Doppler cut.
-                      *33 = S2_INDEX = Spectrum Width  for VCP 121 second Doppler cut.
-                      *34 = V3_INDEX = Radial Velocity for VCP 121 third Doppler cut.
-                      *35 = S3_INDEX = Spectrum Width  for VCP 121 third Doppler cut.
-                      *42 = ET_INDEX = Total Power Enhanced (Sigmet)
-                      *43 = EZ_INDEX = Clutter Corr. Reflectivity Enhanced (Sigmet)
+		      *31 = VC_INDEX = Radial Velocity Corrected (Sigmet)
+		      *32 = V2_INDEX = Radial Velocity for VCP 121 second Doppler cut.
+		      *33 = S2_INDEX = Spectrum Width  for VCP 121 second Doppler cut.
+		      *34 = V3_INDEX = Radial Velocity for VCP 121 third Doppler cut.
+		      *35 = S3_INDEX = Spectrum Width  for VCP 121 third Doppler cut.
                 */
 
 } Radar;
@@ -495,7 +497,7 @@ typedef struct {
  * rsl_qfield by adding a '1' for each new volume index.
  */
 
-#define MAX_RADAR_VOLUMES 47
+#define MAX_RADAR_VOLUMES 42
 
 #define DZ_INDEX 0
 #define VR_INDEX 1
@@ -539,11 +541,6 @@ typedef struct {
 #define SD_INDEX 39
 #define ZZ_INDEX 40
 #define RD_INDEX 41
-#define ET_INDEX 42
-#define EZ_INDEX 43
-#define TV_INDEX 44
-#define ZV_INDEX 45
-#define SN_INDEX 46
 
 
 /* Prototypes for functions. */
@@ -553,6 +550,7 @@ typedef struct {
 Radar *RSL_africa_to_radar(char *infile);
 Radar *RSL_anyformat_to_radar(char *infile, ...);
 Radar *RSL_dorade_to_radar(char *infile);
+Radar *RSL_EDGE_to_radar(char *infile);
 Radar *RSL_fix_radar_header(Radar *radar);
 Radar *RSL_get_window_from_radar(Radar *r, float min_range, float max_range,float low_azim, float hi_azim);
 Radar *RSL_hdf_to_radar(char *infile);
@@ -651,7 +649,7 @@ int RSL_write_radar_gzip(Radar *radar, char *outfile);
 int RSL_write_volume(Volume *v, FILE *fp);
 
 unsigned char *RSL_rhi_sweep_to_cart(Sweep *s, int xdim, int ydim, float range, 
-                                     int vert_scale);
+									 int vert_scale);
 unsigned char *RSL_sweep_to_cart(Sweep *s, int xdim, int ydim, float range);
 
 void RSL_add_dbz_offset_to_ray(Ray *r, float dbz_offset);
@@ -688,8 +686,10 @@ void RSL_load_red_table(char *infile);
 void RSL_load_green_table(char *infile);
 void RSL_load_blue_table(char *infile);
 void RSL_print_histogram(Histogram *histogram, int min_range, int max_range,
-                         char *filename);
+						 char *filename);
 void RSL_print_version();
+void RSL_prune_radar_on();
+void RSL_prune_radar_off();
 void RSL_radar_to_uf(Radar *r, char *outfile);
 void RSL_radar_to_uf_gzip(Radar *r, char *outfile);
 void RSL_radar_verbose_off(void);
@@ -702,7 +702,7 @@ void RSL_rebin_zdr_ray(Ray *r);
 void RSL_rebin_zdr_sweep(Sweep *s);
 void RSL_rebin_zdr_volume(Volume *v);
 void RSL_rhi_sweep_to_gif(Sweep *s, char *outfile, int xdim, int ydim, float range, 
-                          int vert_scale);
+						  int vert_scale);
 void RSL_select_fields(char *field_type, ...);
 void RSL_set_color_table(int icolor, char buffer[256], int ncolors);
 void RSL_sweep_to_gif(Sweep *s, char *outfile, int xdim, int ydim, float range);
@@ -714,7 +714,7 @@ void RSL_volume_to_pgm(Volume *v, char *basename, int xdim, int ydim, float rang
 void RSL_volume_to_pict(Volume *v, char *basename, int xdim, int ydim, float range);
 void RSL_volume_to_ppm(Volume *v, char *basename, int xdim, int ydim, float range);
 void RSL_write_gif(char *outfile, unsigned char *image,
-                   int xdim, int ydim, char c_table[256][3]);
+				   int xdim, int ydim, char c_table[256][3]);
 void RSL_write_pgm(char *outfile, unsigned char *image,
                    int xdim, int ydim);
 void RSL_write_pict(char *outfile, unsigned char *image,
@@ -722,21 +722,22 @@ void RSL_write_pict(char *outfile, unsigned char *image,
 void RSL_write_ppm(char *outfile, unsigned char *image,
                    int xdim, int ydim, char c_table[256][3]);
 
+
 Cappi *RSL_new_cappi(Sweep *sweep, float height);
 Cappi *RSL_cappi_at_h(Volume  *v, float height, float max_range);
 
 Carpi *RSL_cappi_to_carpi(Cappi *cappi, float dx, float dy,
-                          float lat, float lon,
-                          int nx, int ny, int radar_x, int radar_y);
+						  float lat, float lon,
+						  int nx, int ny, int radar_x, int radar_y);
 Carpi *RSL_new_carpi(int nrows, int ncols);
 Carpi *RSL_volume_to_carpi(Volume *v, float h, float grnd_r,
-                           float dx, float dy, int nx, int ny,
-                           int radar_x, int radar_y, float lat, float lon);
+						float dx, float dy, int nx, int ny,
+						int radar_x, int radar_y, float lat, float lon);
 
 Cube *RSL_new_cube(int ncarpi);
 Cube *RSL_volume_to_cube(Volume *v, float dx, float dy, float dz,
-                         int nx, int ny, int nz, float grnd_r,
-                         int radar_x, int radar_y, int radar_z);
+					  int nx, int ny, int nz, float grnd_r,
+					  int radar_x, int radar_y, int radar_z);
 
 Slice *RSL_new_slice(int nrows, int ncols);
 Slice *RSL_get_slice_from_cube(Cube *cube, int x, int y, int z);
@@ -744,14 +745,14 @@ Slice *RSL_get_slice_from_cube(Cube *cube, int x, int y, int z);
 
 Histogram *RSL_allocate_histogram(int low, int hi);
 Histogram *RSL_get_histogram_from_ray(Ray *ray, Histogram *histogram,
-                                      int low, int hi, int min_range,
-                                      int max_range);
+									  int low, int hi, int min_range,
+									  int max_range);
 Histogram *RSL_get_histogram_from_sweep(Sweep *sweep, Histogram *histogram, 
-                                        int low, int hi, int min_range,
-                                        int max_range);
+										int low, int hi, int min_range,
+										int max_range);
 Histogram *RSL_get_histogram_from_volume(Volume *volume, Histogram *histogram,
-                                         int low, int hi, int min_range,
-                                         int max_range);
+										 int low, int hi, int min_range,
+										 int max_range);
 Histogram *RSL_read_histogram(char *infile);
 
 int no_command (char *cmd);
@@ -760,18 +761,18 @@ FILE *compress_pipe (FILE *fp);
 int rsl_pclose(FILE *fp);
 
 /* Carpi image generation functions. These are modified clones of the
-     corresponding sweep image generation functions.
+	 corresponding sweep image generation functions.
 */
 unsigned char *RSL_carpi_to_cart(Carpi *carpi, int xdim, int ydim,
-                                                                 float range);
+																 float range);
 void RSL_carpi_to_gif(Carpi *carpi, char *outfile, int xdim, int ydim,
-                                            float range);
+											float range);
 void RSL_carpi_to_pict(Carpi *carpi, char *outfile, int xdim, int ydim,
-                                             float range);
+											 float range);
 void RSL_carpi_to_ppm(Carpi *carpi, char *outfile, int xdim, int ydim,
-                                            float range);
+											float range);
 void RSL_carpi_to_pgm(Carpi *carpi, char *outfile, int xdim, int ydim,
-                                            float range);
+											float range);
 
 /* Internal storage conversion functions. These may be any conversion and
  * may be dynamically defined; based on the input data conversion.
@@ -809,7 +810,6 @@ float NP_F(Range x);
 float HC_F(Range x);
 float VC_F(Range x);
 float SD_F(Range x);
-float SN_F(Range x);
 
 Range DZ_INVF(float x);
 Range VR_INVF(float x);
@@ -844,7 +844,6 @@ Range NP_INVF(float x);
 Range HC_INVF(float x);
 Range VC_INVF(float x);
 Range SD_INVF(float x);
-Range SN_INVF(float x);
 
 
 /* If you like these variables, you can use them in your application
@@ -857,8 +856,7 @@ static char *RSL_ftype[] = {"DZ", "VR", "SW", "CZ", "ZT", "DR",
                             "TI", "DX", "CH", "AH", "CV", "AV",
                             "SQ", "VS", "VL", "VG", "VT", "NP",
                             "HC", "VC", "V2", "S2", "V3", "S3",
-                            "CR", "CC", "PR", "SD", "ZZ", "RD",
-                            "ET", "EZ", "TV", "ZV", "SN"};
+                            "CR", "CC", "PR", "SD", "ZZ", "RD"};
 
 static  float (*RSL_f_list[])(Range x) = {DZ_F, VR_F, SW_F, CZ_F, ZT_F, DR_F,
                                           LR_F, ZD_F, DM_F, RH_F, PH_F, XZ_F,
@@ -866,8 +864,7 @@ static  float (*RSL_f_list[])(Range x) = {DZ_F, VR_F, SW_F, CZ_F, ZT_F, DR_F,
                                           TI_F, DX_F, CH_F, AH_F, CV_F, AV_F,
                                           SQ_F, VS_F, VL_F, VG_F, VT_F, NP_F,
                                           HC_F, VC_F, VR_F, SW_F, VR_F, SW_F,
-                                          DZ_F, CZ_F, PH_F, SD_F, DZ_F, DZ_F,
-                                          ZT_F, DZ_F, ZT_F, DZ_F, SN_F};
+                                          DZ_F, CZ_F, PH_F, SD_F, DZ_F, DZ_F};
 
 static  Range (*RSL_invf_list[])(float x)
          = {DZ_INVF, VR_INVF, SW_INVF, CZ_INVF, ZT_INVF, DR_INVF, 
@@ -876,8 +873,7 @@ static  Range (*RSL_invf_list[])(float x)
             TI_INVF, DX_INVF, CH_INVF, AH_INVF, CV_INVF, AV_INVF,
             SQ_INVF, VS_INVF, VL_INVF, VG_INVF, VT_INVF, NP_INVF,
             HC_INVF, VC_INVF, VR_INVF, SW_INVF, VR_INVF, SW_INVF,
-            DZ_INVF, CZ_INVF, PH_INVF, SD_INVF, DZ_INVF, DZ_INVF,
-            ZT_INVF, DZ_INVF, ZT_INVF, DZ_INVF, SN_INVF};
+            DZ_INVF, CZ_INVF, PH_INVF, SD_INVF, DZ_INVF, DZ_INVF};
 #endif
 /* Secret routines that are quite useful and useful to developers. */
 void radar_load_date_time(Radar *radar);
@@ -892,15 +888,6 @@ Hash_table *construct_sweep_hash_table(Sweep *s);
 double       angle_diff(float x, float y);
 int rsl_query_field(char *c_field);
 
-/* Functions to control the handling of WSR-88D split cuts. */
-void RSL_wsr88d_merge_split_cuts_on();
-void RSL_wsr88d_merge_split_cuts_off();
-void RSL_wsr88d_keep_short_refl();
-int wsr88d_merge_split_cuts_is_set();
-
-Radar *wsr88d_merge_split_cuts(Radar *radar);
-void RSL_wsr88d_asis();
-void RSL_wsr88d_keep_sails();
 
 /* Debugging prototypes. */
 void poke_around_volume(Volume *v);

@@ -1,4 +1,4 @@
-v1.50 (Released March 1, 2017)
+v1.42 (Released 7/12/2011)
 
 This is the README file for the Radar Software Library (RSL).
 
@@ -8,7 +8,7 @@ RSL is maintained by Bart Kelley <Bartie.L.Kelley@nasa.gov>.
 
 What is RSL?
    This software manipulates NexRad, Lassen, UF, sigmet, kwajalein,
-toga, RAPIC, RADTEC, and mcgill radar formats.
+toga, RAPIC, RADTEC, mcgill and EDGE radar formats.
 
 The radar data is used by the NASA TRMM Office to produce rain
 and climatological products.  This software
@@ -47,7 +47,7 @@ COPYRIGHT NOTICE:
 System Requirements:
   Linux, Mac OS X 10.5.
 
-Note: RSL is not supported on Microsoft Windows.
+  Note: MS Windows is not supported.
 
 Memory Requirements:
   16 Mbytes of RAM just to ingest the data.  Plus any for your application.
@@ -64,6 +64,15 @@ Intel 386/486/Pentium is an example of a little endian machine.
 Additional software needed for executing RSL code is listed below.
 Note, RSL can be built without TSDIS toolkit and without HDF and
 without PKWARE support.
+
+  pbmplus (Jef Poskanzer) Available via anon ftp to ftp.uu.net.  This is 
+                          used when making GIF, PPM, PBM, PGM, PICT, etc.
+                          images.  Output via pipes.  Required for executing
+                          your RSL application, if you plan to output images.
+                          This is not required when 
+                          linking your application with the RSL.
+
+                          You only need ppmtogif and ppmtopict.
 	
   gcc (GNU cc compiler)   Normal cc or acc (sun) will work.  Not required,
                           but, you do need an ansi compilier.
@@ -76,19 +85,15 @@ without PKWARE support.
                           IRIX 6.2 doesn't work.  It's a good idea
                           to have GNU make (GNU tar too).
 
-  pbmplus (Jef Poskanzer) Available via anon ftp to ftp.uu.net.  This is 
-                          used when making GIF, PPM, PBM, PGM, PICT, etc.
-                          images.  Output via pipes.  Required for executing
-                          your RSL application, if you plan to output images.
-                          This is not required when 
-                          linking your application with the RSL.
-
-                          You only need ppmtogif and ppmtopict.
-
   PKWARE Data             Version 1.11.  Needed for the RAPIC ingest.
   Compression library.    Call PKWARE, Inc. at 414-354-8699 or via
                           http://www.pkware.com.
                           
+  libetor                 The EDGE libraray to decode the EDGE format.
+                          This is available from Enterprise  Electronics
+                          Corporation, Enterprise,  Alabama,  USA  36330
+                          334-347-3478.
+
 Example mainlines are provided in the directory examples. 
 
 INSTALLATION INSTRUCTIONS
@@ -96,11 +101,11 @@ INSTALLATION INSTRUCTIONS
 
 1.  Unpack the GNU compressed tar archive, example:
 
-     tar -xzf rsl-v1.43.tgz
+     tar -xzf rsl-v1.29.tgz
 
          -or-
 
-     zcat rsl-v1.43.tgz | tar xf -
+     zcat rsl-v1.29.tgz | tar xf -
 
 2. If you DON'T want LASSEN capability or you find that your system
    can not compile the lassen routines, you must edit acconfig.h and
@@ -199,4 +204,4 @@ Don Burrows - The edge_to_radar routine.
 QUESTIONS
 ---------
 
-Contact the TRMM Office help at gsfc-rsl-help@lists.nasa.gov
+Contact the TRMM Office help at help@radar.gsfc.nasa.gov

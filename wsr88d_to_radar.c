@@ -40,27 +40,7 @@ void free_and_clear_sweep(Wsr88d_sweep *wsr88d_sweep, int x, int n);
  */
 Volume *copy_sweeps_into_volume(Volume *new_volume, Volume *old_volume);
 
-
-Radar *wsr88d_load_m31_into_radar(Wsr88d_file *wf);
-
-/* Function to specify keeping the extra split-cut inserted into middle of
- * volume scan when SAILS is in effect for VCPs 12 and 212.
- */
-static int keep_sails = 0;
-void RSL_wsr88d_keep_sails()
-{
-    keep_sails = 1;
-}
-
-/* Function to specify that all sweeps are to be stored as read.  Don't combine
- * split-cuts by elevation or remove short-range reflectivity in Doppler cuts.
- */
-void RSL_wsr88d_asis()
-{
-    RSL_wsr88d_merge_split_cuts_off();
-    RSL_wsr88d_keep_sails();
-}
-
+ 
 void float_to_range(float *x, Range *c, int n, Range (*function)(float x) )
 {
   while (n--) {
@@ -103,8 +83,7 @@ int wsr88d_load_sweep_into_volume(Wsr88d_sweep ws,
     perror("wsr88d_load_sweep_into_volume: RSL_new_sweep");
     return -1;
   }
-
-  v->sweep[nsweep]->h.elev = 0;
+    
   v->sweep[nsweep]->h.nrays = 0;
   f = (float (*)(Range x))NULL;
   invf = (Range (*)(float x))NULL;
@@ -204,7 +183,7 @@ int wsr88d_load_sweep_into_volume(Wsr88d_sweep ws,
   if (v->sweep[nsweep]->h.nrays > 0)
     v->sweep[nsweep]->h.elev /= v->sweep[nsweep]->h.nrays;
   else {
-    RSL_free_sweep(v->sweep[nsweep]); /* No rays loaded, free this sweep. */
+    free(v->sweep[nsweep]);  /* No rays loaded, free this sweep. */
     v->sweep[nsweep] = NULL;
   }
   
@@ -254,11 +233,12 @@ Radar *RSL_wsr88d_to_radar(char *infile, char *call_or_first_tape_file)
   char *the_file;
   int expected_msgtype = 0;
   char version[8];
-  int vnum;
 
   extern int rsl_qfield[]; /* See RSL_select_fields in volume.c */
   extern int *rsl_qsweep; /* See RSL_read_these_sweeps in volume.c */
   extern int rsl_qsweep_max;
+
+  Radar *wsr88d_load_m31_into_radar(Wsr88d_file *wf);
 
   sitep = NULL;
 /* Determine the site quasi automatically.  Here is the procedure:
@@ -314,16 +294,23 @@ Radar *RSL_wsr88d_to_radar(char *infile, char *call_or_first_tape_file)
   /*
    * Get the expected digital radar message type based on version string
    * from the Archive II header.  The message type is 31 for Build 10, and 1
-   * for prior builds.
+   * for prior builds.  Note that we consider AR2V0001 to be message type 1,
+   * because it has been in the past, but with Build 10 this officially
+   * becomes the version number for Evansville (KVWX), which will use message
+   * type 31.  This could be a problem if RSL is used to process KVWX.
    */
   if (n > 0) {
       strncpy(version, wsr88d_file_header.title.filename, 8);
-      if (strncmp(version,"AR2V",4) == 0) {
-          sscanf(version, "AR2V%4d", &vnum);
-          if (vnum > 1) expected_msgtype = 31;
-          else expected_msgtype = 1;
+      if (strncmp(version,"AR2V0006",8) == 0 ||
+          strncmp(version,"AR2V0004",8) == 0 ||
+          strncmp(version,"AR2V0003",8) == 0 ||
+          strncmp(version,"AR2V0002",8) == 0) {
+          expected_msgtype = 31;
       }
-      else if (strncmp(version,"ARCHIVE2",8) == 0) expected_msgtype = 1;
+      else if (strncmp(version,"ARCHIVE2",8) == 0 ||
+          strncmp(version,"AR2V0001",8) == 0) {
+          expected_msgtype = 1;
+      }
   }
 
   if (n <= 0 || expected_msgtype == 0) {
@@ -342,7 +329,9 @@ Radar *RSL_wsr88d_to_radar(char *infile, char *call_or_first_tape_file)
 
 
   if (expected_msgtype == 31) {
+
       /* Get radar for message type 31. */
+      nvolumes = 6;
       radar = wsr88d_load_m31_into_radar(wf);
       if (radar == NULL) return NULL;
   }
@@ -450,10 +439,6 @@ Radar *RSL_wsr88d_to_radar(char *infile, char *call_or_first_tape_file)
 
     free(sitep);
 
-  if (wsr88d_merge_split_cuts_is_set()) {
-      radar = wsr88d_merge_split_cuts(radar);
-      if ((radar->h.vcp == 12 || radar->h.vcp == 212) && !keep_sails) 
-          wsr88d_remove_sails_sweep(radar);
-  }
+  radar = RSL_prune_radar(radar);
   return radar;
 }

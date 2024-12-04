@@ -22,7 +22,6 @@
 */
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
 #include <time.h>
 #include <stdlib.h>
 
@@ -60,13 +59,10 @@ extern int radar_verbose_flag;
 
 
 /* Changed old buffer size (16384) for larger dualpol files.  BLK 5/20/2011 */
-/* Changed old buffer size (20000) for larger dualpol files.  BLK 3/24/2014 */
-typedef short UF_buffer[26000]; /* Bigger than documented 4096. */
+typedef short UF_buffer[20000]; /* Bigger than documented 4096. */
 
 void swap_uf_buffer(UF_buffer uf);
 void swap2(short *buf, int n);
-Radar *wsr88d_align_split_cut_rays(Radar *radar);
-
 
 /**********************************************************************/
 /*                                                                    */
@@ -136,22 +132,9 @@ void RSL_radar_to_uf_fp(Radar *r, FILE *fp)
   int sweep_num, ray_num, rec_num;
   float x;
 
-  Radar *r_save = NULL;
-
   if (r == NULL) {
     fprintf(stderr, "radar_to_uf_fp: radar pointer NULL\n");
     return;
-  }
-
-  /* If this is WSR-88D data, reorder VR and SW rays in split cuts so that
-   * their azimuths agree with DZ rays.
-   */
-  if (r->h.vcp > 0) {
-    if (wsr88d_merge_split_cuts_is_set()) {
-      /* Save a copy of the input radar; we'll restore it later. */
-      r_save = r;
-      r = wsr88d_align_split_cut_rays(r);
-    }
   }
 
 /* Do all the headers first time around.  Then, prune OP and LU. */
@@ -356,9 +339,9 @@ void RSL_radar_to_uf_fp(Radar *r, FILE *fp)
           if (little_endian()) swap2(&uf_op[0], 8/2);
           uf_op[4] = (signed short)UF_NO_DATA;
           uf_op[5] = (signed short)UF_NO_DATA;
-          uf_op[6] = r->h.hour;
-          uf_op[7] = r->h.minute;
-          uf_op[8] = r->h.sec;
+          uf_op[6] = ray->h.hour;
+          uf_op[7] = ray->h.minute;
+          uf_op[8] = ray->h.sec;
           memcpy(&uf_op[9], "RADAR_UF", 8);
           if (little_endian()) swap2(&uf_op[9], 8/2);
           uf_op[13] = 2;
@@ -368,11 +351,34 @@ void RSL_radar_to_uf_fp(Radar *r, FILE *fp)
         
         /* ---- Begining of LOCAL USE HEADER BLOCK. */
         q_lu = 0;
+
+        /* TODO: Code within "#ifdef LUHDR_VR_AZ" below should be removed
+         * once testing of merge_split_cuts is completed.
+         */
+/* 5/18/2010 Temporarily define LUHDR_VR_AZ until merge_split_cuts is
+   completed. */
+#define LUHDR_VR_AZ
+#ifdef LUHDR_VR_AZ
+        /* If DZ and VR azimuths are different, store VR azimuth in Local Use
+         * Header. This is done for WSR-88D split cuts.
+         */
+        if (sweep[DZ_INDEX] && sweep[VR_INDEX]) {
+            if (sweep[DZ_INDEX]->ray[j] && sweep[VR_INDEX]->ray[j]) {
+            vr_az = sweep[VR_INDEX]->ray[j]->h.azimuth;
+            if (sweep[DZ_INDEX]->ray[j]->h.azimuth != vr_az)
+                q_lu = 1; /* Set to use Local Use Header block. */
+            }
+        }
+#endif
         len_lu = 0;
         if (q_lu) {
+          /* Store azimuth for WSR-88D VR ray in Local Use Header. */
           uf_lu = uf+len_ma+len_op;
-          q_lu = 0; /* Only once. */
-          len_lu = 0;  /* I don't have anything yet. */
+          memcpy(&uf_lu[0], "AZ", 2);
+          if (little_endian()) memcpy(&uf_lu[0], "ZA", 2);
+          if (vr_az > 0) uf_lu[1] = vr_az*64 + 0.5;
+          else uf_lu[1] = vr_az*64 - 0.5;
+          len_lu = 2;
         }
         /* ---- End  of LOCAL USE HEADER BLOCK. */
 
@@ -435,7 +441,7 @@ void RSL_radar_to_uf_fp(Radar *r, FILE *fp)
               uf_fh[6] = ray->h.pulse_width*(RSL_SPEED_OF_LIGHT/1.0e6);
               uf_fh[7] = sweep[k]->h.beam_width*64.0 + 0.5;
               uf_fh[8] = sweep[k]->h.beam_width*64.0 + 0.5;
-              uf_fh[9] = ray->h.frequency * 1000.; /* Bandwidth (mHz). */
+              uf_fh[9] = ray->h.frequency*64.0 + 0.5; /* Bandwidth (mHz). */
               uf_fh[10] = 0; /* Horizontal polarization. */ 
               uf_fh[11] = ray->h.wavelength*64.0*100.0; /* m to cm. */
               uf_fh[12] = ray->h.pulse_count;
@@ -472,7 +478,7 @@ void RSL_radar_to_uf_fp(Radar *r, FILE *fp)
                 if (x == BADVAL || x == RFVAL || x == APFLAG || x == NOECHO)
                   uf_data[m] = (signed short)UF_NO_DATA;
                 else
-                  uf_data[m] = roundf(scale_factor * x);
+                  uf_data[m] = scale_factor * x;
               }
               
               current_fh_index += (len_fh+len_data);
@@ -501,9 +507,6 @@ void RSL_radar_to_uf_fp(Radar *r, FILE *fp)
       } /* if (ray) */
     }
   }
-
-  /* If Radar argument "r" was modified (WSR-88D), restore the saved copy. */
-  if (r_save != NULL) r = r_save;
 }
 
 /**********************************************************************/

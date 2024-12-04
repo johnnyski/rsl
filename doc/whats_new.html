@@ -12,31 +12,8 @@
 <h1>
 What's new?</h1>
 
-<h2> Version 1.50</h2>
-Handle WSR-88D files that use BZip2 internal compression.
-<h2> Version 1.49</h2>
-Bug fixes. See <a href="../CHANGES">CHANGES</a>.
-<h2> Version 1.48</h2>
-Removes MESO-SAILS sweeps found in WSR-88D VCPs 12 and 212.<br>
-See <a href="../CHANGES">CHANGES</a> for additional minor bug fixes.
-<h2> Version 1.47</h2>
-Mostly bug fixes.  See <a href="../CHANGES">CHANGES</a>.
-<h2> Version 1.46</h2>
-For WSR-88D VCPs 12 and 212: 
-Remove the low-level split cut inserted in the middle of the volume scan when
-SAILS is in effect.  To keep this additional split cut, call the new function
-<a href="RSL_wsr88d_keep_sails.html">RSL_wsr88d_keep_sails</a> before calling
-<a href="RSL_anyformat_to_radar.html">RSL_anyformat_to_radar</a>.
-<h2> Version 1.45</h2>
-Added fields TV, ZV, and SN for Sigmet raw data.<br>
-Fixed a problem in which negative values of KDP stored in the radar structure
-could be retrieved as large positive values on 64-bit machines.
-<h2> Version 1.44</h2>
-Mainly internal improvements. See <a href="../CHANGES">CHANGES</a>.
-<h2> Version 1.43</h2>
-Mostly bug fixes.  See <a href="../CHANGES">CHANGES</a>.
 <h2>
-Version 1.42</h2>
+Version 1.42: Bug fix.</h2>
 Changed scale_factor used for storing differential phase (PH) in UF from 100 to
 10.  The usual scale factor of 100 caused values over 327.67 to become negative
 when converted to short integer.
@@ -70,7 +47,7 @@ RSL, specify <b>-DHAVE_TSDIS_TOOLKIT</b> in the Makefile.
 structure.
 <h2>
 Version 1.23 release (what's new since v1.18).</h2>
-RSL now accpets the EDGE format.&nbsp;
+RSL now accpets the EDGE format.&nbsp; See <a href="RSL_edge_to_radar.html">RSL_edge_to_radar</a>.&nbsp;
 KDP definition changed.&nbsp; It now normalizes the value based on the
 radar wavelength.&nbsp; A bug in the RADTEC ingest routine was removed.&nbsp;
 Other than that, mostly bug fixes that were very minor.&nbsp; Added <a href="RSL_color_table.html">RSL_set_color_table</a>

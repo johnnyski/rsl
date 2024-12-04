@@ -282,18 +282,12 @@ int nsig_read_chunk(FILE *fp, char *chunk)
       break; /* or continue; */
 
     } else if (the_code == 0) {  /* UNKNOWN */
-        fprintf(stderr, "nsig_read_chunk: invalid data code %d\n", the_code);
-        break;
+      break;
     } else {  /* NUMBER OF ZERO's */
 #ifdef Vprint
       printf("#000000000000 to skip is %d (i=%d)\n", the_code, i);
 #endif
-      if (i+the_code * sizeof(twob) > NSIG_BLOCK) {
-        fprintf(stderr,"nsig_read_chunk: bad data code: number 0's to skip "
-                "(%d) exceeds block size (%d).\n",i+the_code*sizeof(twob),
-                NSIG_BLOCK);
-        return -1;
-      }
+      if (i+the_code * sizeof(twob) > NSIG_BLOCK) return -1;
       memset(&chunk[i], 0, the_code*sizeof(twob));
       i += the_code * sizeof(twob);
     }
@@ -347,7 +341,7 @@ NSIG_Ext_header_ver1 *nsig_read_ext_header_ver1(FILE *fp)
   return xh1;
 }
 
-NSIG_Ray *nsig_read_ray(FILE *fp, int *nsig_error)
+NSIG_Ray *nsig_read_ray(FILE *fp)
 {
   int n, nbins;
   NSIG_Ray_header rayh;
@@ -361,14 +355,12 @@ NSIG_Ray *nsig_read_ray(FILE *fp, int *nsig_error)
 
   if (n < 0) {
     fprintf(stderr, "nsig_read_ray: chunk return code = %d.\n", n);
-    *nsig_error = 1;
     return NULL;
   }
 
   if (n > NSIG_BLOCK) { /* Whoa! */
     fprintf(stderr, "nsig_read_ray: chunk bigger than buffer. n = %d,\
  maximum block size allowed is %d\n", n, NSIG_BLOCK);
-    *nsig_error = 1;
     return NULL;
   }
 
@@ -385,19 +377,23 @@ NSIG_Ray *nsig_read_ray(FILE *fp, int *nsig_error)
   printf("               rayh.num_bins = %d (nbins %d, n %d)\n", NSIG_I2(rayh.num_bins), nbins, n);
 #endif
   ray->range = (unsigned char *)calloc(n, sizeof(unsigned char));
+  /* Changed calloc nbins to calloc n for 2-byte data.
+  ray->range = (unsigned char *)calloc(nbins, sizeof(unsigned char));
+  memmove(ray->range, &chunk[sizeof(NSIG_Ray_header)], nbins);
+     Can remove this commented-out code once we know changes work.
+  */
   memmove(ray->range, &chunk[sizeof(NSIG_Ray_header)], n);
   
   return ray;
 }
 
 
-NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file,
-        int *nsig_error)
+NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file)
 {
   NSIG_Sweep **s;
   int i, j, n;
-  NSIG_Ingest_data_header **idh = NULL;
-  NSIG_Raw_prod_bhdr *bhdr = NULL;
+  static NSIG_Ingest_data_header **idh = NULL;
+  static NSIG_Raw_prod_bhdr *bhdr = NULL;
   NSIG_Ray *nsig_ray;
   int data_mask, iray, nrays[12], max_rays;
   int masks[5];
@@ -446,7 +442,7 @@ NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file,
    */
 
 #define Vprint
-#undef  Vprint
+/* #undef  Vprint */
   /* Determine if we need to byte-swap values. */
   (void)nsig_endianess(&prod_file->rec1);
   
@@ -515,10 +511,10 @@ NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file,
   /* This is a NEW sweep. */
   iray = 0;
 #ifdef Vprint
-  {int isweep;
+  int isweep;
   isweep = NSIG_I2(idh[0]->sweep_num);
   printf("Number of rays in sweep %d is %d\n", isweep, max_rays);
-  }
+  
 #endif
   /* Allocate memory for sweep. */
   s = (NSIG_Sweep **) calloc (nparams, sizeof(NSIG_Sweep*));
@@ -542,12 +538,9 @@ NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file,
     nrays[i] = (int)NSIG_I2(idh[i]->num_rays_act);
     if (nrays[i] > max_rays) max_rays = nrays[i];
 #ifdef Vprint
-  {int isweep;
-  isweep = NSIG_I2(idh[0]->sweep_num);
     printf("New ray: parameter %d has idtype=%d\n", i, idtype[i]);
     printf("Number of expected rays in sweep %d is %d\n", isweep, (int)NSIG_I2(idh[i]->num_rays_exp));
     printf("Number of actual   rays in sweep %d is %d\n", isweep,  (int)NSIG_I2(idh[i]->num_rays_act));
-  }
 #endif
 
   }
@@ -604,7 +597,7 @@ NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file,
        */
       nsig_ray = NULL;
       if (idtype[i] != 0) { /* Not an extended header. */
-        nsig_ray = nsig_read_ray(fp, nsig_error);
+        nsig_ray = nsig_read_ray(fp);
 
       } else { /* Check extended header version. */
         if (xh_size <= 20) {
@@ -622,20 +615,16 @@ NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file,
         }
       }
       if (nsig_ray) is_new_ray = 1;
-      if (iray > nrays[i] || *nsig_error) break;
+      if (iray > nrays[i]) break;
       s[i]->ray[iray] = nsig_ray;
 
     } /* End for */
     if (is_new_ray) iray++;
-    if (*nsig_error) break;
+    
   } while (iray < max_rays);
 #ifdef Vprint
   printf("iray = %d\n", iray);
 #endif
-  if (*nsig_error) {
-      nsig_free_sweep(s);
-      s = NULL;
-  }
   return s;
   
 }

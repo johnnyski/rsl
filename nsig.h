@@ -42,11 +42,6 @@
 #define NSIG_DTB_HCLASS2  56
 #define NSIG_DTB_ZDRC     57
 #define NSIG_DTB_ZDRC2    58
-#define NSIG_DTB_DBTV2    62
-#define NSIG_DTB_DBZV2    64
-#define NSIG_DTB_SNR2     66
-#define NSIG_DTB_DBTE8    71
-#define NSIG_DTB_DBZE8    73
 
 /* Product type code ,value for byte 12 in product configuration 
  * struct, III-35
@@ -967,8 +962,7 @@ typedef struct {
 
 void nsig_free_ray(NSIG_Ray *r);
 void nsig_free_sweep(NSIG_Sweep **s);
-NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file,
-        int *nsig_error);
+NSIG_Sweep **nsig_read_sweep(FILE *fp, NSIG_Product_file *prod_file);
 int nsig_read_record(FILE *fp, char *nsig_rec);
 int nsig_endianess(NSIG_Record1 *rec1);
 short NSIG_I2 (twob x);

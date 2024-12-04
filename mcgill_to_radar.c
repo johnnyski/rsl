@@ -193,15 +193,19 @@ void Ray_headerInit(Ray *ray, mcgHeader_t *head, mcgRay_t *mcg_ray,
 	  {
 	case 1: 
 	  ray->h.gate_size = 1000;  /* 1 km/bin */
+	  ray->h.fix_angle = 24;    /* 24 sweeps */
 	  break;
 	case 2: 
 	  ray->h.gate_size = 2000;  /* 2 km/bin */
+	  ray->h.fix_angle = 24;    /* 24 sweeps */
 	  break;
 	case 3: 
 	  ray->h.gate_size = 1000;  /* 1 km/bin */
+	  ray->h.fix_angle = 12;    /* 12 sweeps */
 	  break;
 	case 4: 
 	  ray->h.gate_size = 2000;  /* 2 km/bin */
+	  ray->h.fix_angle = 12;    /* 12 sweeps */
 	  break;
 	default:
 	  break;

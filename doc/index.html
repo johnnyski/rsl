@@ -21,7 +21,9 @@
 <p>
 <hr></center>
 
-<h2>Current RSL Version 1.50, released March 1, 2017</h2>
+<h2>
+Current RSL Version 1.42, released 7/12/2011<br>
+Supports WSR-88D Level II Build 12 Format</h2>
 
 In support of the <a href="http://trmm-fc.gsfc.nasa.gov">Tropical Rainfall
 Measuring Mission</a>'s (TRMM) <a href="http://trmm-fc.gsfc.nasa.gov/trmm_gv/index.html">Global
@@ -31,7 +33,7 @@ library written in C.
 <p>This library is an object oriented programming environment for writing
 software applicable to all RADAR data related to the <a href="http://trmm-fc.gsfc.nasa.gov/trmm_gv/index.html">TRMM
 GV</a> effort. This library reads the WSR88D, Lassen, Sigmet, McGill, UF,
-HDF, RADTEC and native RSL file formats. Additional functions are
+HDF, RAPIC, RADTEC and native RSL file formats. Additional functions are
 provided to manipulate the RSL objects. Nearly all of the functions return
 objects. When they don't, they usually perform actions like output, making
 images, etc. The most general object in RSL is <b>Radar</b>. The structure
@@ -49,7 +51,7 @@ etc. There are approximately 20 field types. See the
 <a href="users_guide.html">Users
 Guide</a> for more information.&nbsp; Also, check out <a href="whats_new.html">What's
 New</a>.<br>
-Send questions or comments to gsfc-rsl-help@lists.nasa.gov.
+Send questions or comments to help@radar.gsfc.nasa.gov.
 <center>
 <h4>
 <a href="quick_ref.html">Indexed Reference<br></a>
@@ -82,30 +84,6 @@ Supported Radar Data Formats</h1>
 </tr>
 
 <tr>
-<td>Sigmet Raw Product</td>
-
-<td>Yes</td>
-
-<td>No</td>
-</tr>
-
-<tr>
-<td>WSR-88D Level II</td>
-
-<td>Yes</td>
-
-<td>No</td>
-</tr>
-
-<tr>
-<td>UF - Universal Format</td>
-
-<td>Yes</td>
-
-<td>Yes</td>
-</tr>
-
-<tr>
 <td>Lassen</td>
 
 <td>Yes</td>
@@ -122,7 +100,39 @@ Supported Radar Data Formats</h1>
 </tr>
 
 <tr>
-<td>HDF 1B-51, 1C-51</td>
+<td>Sigmet</td>
+
+<td>Yes</td>
+
+<td>No</td>
+</tr>
+
+<tr>
+<td>WSR-88D</td>
+
+<td>Yes</td>
+
+<td>No</td>
+</tr>
+
+<tr>
+<td>RAPIC</td>
+
+<td>Yes</td>
+
+<td>No</td>
+</tr>
+
+<tr>
+<td>UF - Universal Format</td>
+
+<td>Yes</td>
+
+<td>Yes</td>
+</tr>
+
+<tr>
+<td>HDF - Hierarchical Data Format</td>
 
 <td>Yes</td>
 
@@ -136,31 +146,9 @@ Supported Radar Data Formats</h1>
 
 <td>No</td>
 </tr>
-</table></center>
-
-<center><table BORDER=2 WIDTH="400" >
-<caption>
-<h2>
-Not Supported but Retained for Backward Compatibility</h2>
-</caption>
-
-<tr>
-<td><b>Format Type</b></td>
-
-<td><b>Input</b></td>
-
-<td><b>Output</b></td>
-</tr>
 
 <tr>
 <td>EDGE</td>
-
-<td>Yes</td>
-
-<td>No</td>
-</tr>
-
-<td>RAPIC</td>
 
 <td>Yes</td>
 

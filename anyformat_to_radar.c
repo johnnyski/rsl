@@ -115,6 +115,7 @@ enum File_type RSL_filetype(char *infile)
   if (strncmp("P A B ", magic, 6) == 0) return MCGILL_FILE;
   /* Byte swapped ? */
   if (strncmp(" P A B", magic, 6) == 0) return MCGILL_FILE;
+  if (strncmp("Volume", magic, 6) == 0) return EDGE_FILE;
   if (strncmp("SSWB", magic, 4) == 0) return DORADE_FILE;
   if (strncmp("VOLD", magic, 4) == 0) return DORADE_FILE;
 
@@ -157,6 +158,7 @@ Radar *RSL_anyformat_to_radar(char *infile, ...)
   case    TOGA_FILE: radar = RSL_toga_to_radar(infile);   break;
   case NSIG_FILE_V1: radar = RSL_nsig_to_radar(infile);	  break;
   case NSIG_FILE_V2: radar = RSL_nsig2_to_radar(infile);  break;
+  case   RAPIC_FILE: radar = RSL_rapic_to_radar(infile);  break;
   case  RADTEC_FILE: radar = RSL_radtec_to_radar(infile); break;
   case     RSL_FILE: radar = RSL_read_radar(infile);      break;
 #ifdef HAVE_LIBTSDISTK
@@ -164,6 +166,7 @@ Radar *RSL_anyformat_to_radar(char *infile, ...)
 #endif
   case RAINBOW_FILE: radar = RSL_rainbow_to_radar(infile); break;
   case  MCGILL_FILE: radar = RSL_mcgill_to_radar(infile); break;
+  case    EDGE_FILE: radar = RSL_EDGE_to_radar(infile);   break;
   case  LASSEN_FILE: radar = RSL_lassen_to_radar(infile); break;
   case  DORADE_FILE: radar = RSL_dorade_to_radar(infile); break;
 

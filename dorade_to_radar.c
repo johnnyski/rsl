@@ -46,14 +46,11 @@ int find_rsl_field_index(char *dorade_field_name)
   if (strncasecmp(dorade_field_name, "vr", 2) == 0)  return VR_INDEX;
   if (strncasecmp(dorade_field_name, "dm", 2) == 0)  return DM_INDEX;
   if (strncasecmp(dorade_field_name, "sw", 2) == 0)  return SW_INDEX;
-  if (strncasecmp(dorade_field_name, "dz", 2) == 0)  return DZ_INDEX;
-  if (strncasecmp(dorade_field_name, "zt", 2) == 0)  return ZT_INDEX;
   if (strncasecmp(dorade_field_name, "dbz", 3) == 0) return DZ_INDEX;
   if (strncasecmp(dorade_field_name, "zdr", 3) == 0) return ZD_INDEX;
   if (strncasecmp(dorade_field_name, "phi", 3) == 0) return PH_INDEX;
   if (strncasecmp(dorade_field_name, "rho", 3) == 0) return RH_INDEX;
   if (strncasecmp(dorade_field_name, "ldr", 3) == 0) return LR_INDEX;
-  if (strncasecmp(dorade_field_name, "sq", 2) == 0)  return SQ_INDEX;
   if (strncasecmp(dorade_field_name, "dx", 2) == 0)  return DX_INDEX;
   if (strncasecmp(dorade_field_name, "ch", 2) == 0)  return CH_INDEX;
   if (strncasecmp(dorade_field_name, "ah", 2) == 0)  return AH_INDEX;
@@ -70,9 +67,9 @@ int find_rsl_field_index(char *dorade_field_name)
 
 void prt_skipped_field_msg(char *dorade_field_name)
 {
-#define MAXFIELDS 20
   char prtname[9];
   int i, already_printed;
+#define MAXFIELDS 20
   static int nskipped = 0;
   static char skipped_list[MAXFIELDS][9];
 
@@ -348,13 +345,21 @@ Radar *RSL_dorade_to_radar(char *infile)
           new_volume = copy_sweeps_into_volume(new_volume, radar->v[iv]);
           radar->v[iv] = new_volume;
         }
+	/* Assign f and invf
+	switch (iv) . . .
+	 * Or just use RSL_f_list[iv] and RSL_invf_list[iv] as in sweep.h below.
+	 */
 
+        /* Allocate the ray and load the parameter data. */
         if ((sweep = radar->v[iv]->sweep[nsweep]) == NULL) {
           sweep = radar->v[iv]->sweep[nsweep] = RSL_new_sweep(sr->s_info->nrays);
           sweep->h.sweep_num    = sr->s_info->sweep_num;
           sweep->h.elev         = sr->s_info->fixed_angle;
           sweep->h.beam_width   = rd->horizontal_beam_width;
           sweep->h.vert_half_bw = rd->vertical_beam_width / 2.0;
+	  /*
+          sweep->h.vert_half_bw = radar->v[iv]->sweep[nsweep]->h.beam_width / 2.0;
+	  */
           sweep->h.horz_half_bw = rd->horizontal_beam_width / 2.0;
           sweep->h.f = RSL_f_list[iv];
           sweep->h.invf = RSL_invf_list[iv];
@@ -370,8 +375,6 @@ Radar *RSL_dorade_to_radar(char *infile)
 	  return NULL;
 	}
 	nbins = data_len / word_size;
-
-        /* Allocate the ray and load the parameter data. */
 
         if ((ray = sweep->ray[iray]) == NULL) {
           if (radar_verbose_flag)
@@ -455,6 +458,8 @@ Radar *RSL_dorade_to_radar(char *infile)
 	ray->h.invf = RSL_invf_list[iv];
 
         /* Copy the ray data into the RSL ray. */
+
+        /* .... fill here .... */
 
 	/* Assign pointer to data.
 	 * Get datum using word size and proper cast.

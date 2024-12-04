@@ -5,14 +5,17 @@
             John H. Merritt
             Space Applications Corporation
             Vienna, Virginia
+
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
     License as published by the Free Software Foundation; either
     version 2 of the License, or (at your option) any later version.
+
     This library is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
     Library General Public License for more details.
+
     You should have received a copy of the GNU Library General Public
     License along with this library; if not, write to the Free
     Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -65,10 +68,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#include <fcntl.h>
-#include <sys/types.h>
-#include <bzlib.h>
 
 #include "wsr88d.h"
 
@@ -146,17 +145,17 @@ int Cvt_date(long int date_in)
  ************************************************/
 float Cvt_time(long int time_in)
 {
-    double t;
-    int hh,mm;
+	double t;
+	int hh,mm;
 
-    t = time_in;
+	t = time_in;
     t /= 1000.0;
     hh = t/3600;
     t -= hh*3600;
     mm = t/60;
     t -= mm*60;
-    
-    return hh*10000 + mm*100 + (float) t;
+	
+	return hh*10000 + mm*100 + (float) t;
 }
 /**********************************************************************/
 /*                                                                    */
@@ -181,8 +180,8 @@ void print_head(Wsr88d_file_header h)
 void print_packet_info(Wsr88d_packet *p)
 {
   fprintf(stderr,"%5hd %5hd %5hd %5hd %5hd %5hd %5hd %10.3f %6d\n",
-         p->msg_type, p->id_seq, p->azm, p->ray_num, p->ray_status, p->elev, p->elev_num,
-         Cvt_time((int)p->ray_time), Cvt_date((int)p->ray_date));
+		 p->msg_type, p->id_seq, p->azm, p->ray_num, p->ray_status, p->elev, p->elev_num,
+		 Cvt_time((int)p->ray_time), Cvt_date((int)p->ray_date));
 }
 
 
@@ -199,10 +198,10 @@ void free_and_clear_sweep(Wsr88d_sweep *s, int low, int high)
  */
   int i;
   for (i=low; i<high; i++)
-    if (s->ray[i] != NULL) {
-      free(s->ray[i]);
-      s->ray[i] = NULL;
-    }
+	if (s->ray[i] != NULL) {
+	  free(s->ray[i]);
+	  s->ray[i] = NULL;
+	}
 }
 
 void clear_sweep(Wsr88d_sweep *s, int low, int high)
@@ -212,7 +211,7 @@ void clear_sweep(Wsr88d_sweep *s, int low, int high)
  */
   int i;
   for (i=low; i<high; i++)
-    s->ray[i] = NULL;
+	s->ray[i] = NULL;
 }
 
 void wsr88d_print_sweep_info(Wsr88d_sweep *s)
@@ -223,37 +222,10 @@ void wsr88d_print_sweep_info(Wsr88d_sweep *s)
   fprintf(stderr,"----- ----- ----- ----- ----- ----- ----- ---------- ------\n");
 
   for (i=0; i<MAX_RAYS_IN_SWEEP; i++) {
-    if (s->ray[i] != NULL) 
-      print_packet_info((Wsr88d_packet *) s->ray[i]);
+	if (s->ray[i] != NULL) 
+	  print_packet_info((Wsr88d_packet *) s->ray[i]);
   }
 }
-
-
-// adapted from uncompress_pipe in gzip.c
-FILE *uncompress_pipe_ar2v (FILE *fp)
-{
-  /* Pass the file pointed to by 'fp' through the bzip2 pipe. */
-
-  FILE *fpipe;
-  int save_fd;
-
-  if (no_command("wsr88d_decode_ar2v > /dev/null")){
-    fprintf(stderr, "wsr88d_decode_ar2v not found, aborting ...\n");
-    return fp;
-  }
-  save_fd = dup(0);
-  close(0); /* Redirect stdin for gzip. */
-  dup(fileno(fp));
-
-  fpipe = popen("wsr88d_decode_ar2v --stdout", "r");
-  if (fpipe == NULL) perror("uncompress_pipe_ar2v");
-  close(0);
-  dup(save_fd);
-  close(save_fd);
-  fclose(fp);
-  return fpipe;
-}
-
 
 /**********************************************************************/
 /*                                                                    */
@@ -267,50 +239,15 @@ Wsr88d_file *wsr88d_open(char *filename)
   int save_fd;
 
   if ( strcmp(filename, "stdin") == 0 ) {
-    save_fd = dup(0);
-    wf->fptr = fdopen(save_fd,"r");
+	save_fd = dup(0);
+	wf->fptr = fdopen(save_fd,"r");
   } else {
-    wf->fptr = fopen(filename, "r");
+	wf->fptr = fopen(filename, "r");
   }
 
   if (wf->fptr == NULL) return NULL;
-
-  // first check how the data are compressed by reading first few of magic bytes
-  char hdrplus4[28];
-  char bzmagic[4];
-  int ar2v6bzip = 0;
-  fpos_t pos;
-  fgetpos(wf->fptr, &pos);
-  if (fread(hdrplus4, sizeof(hdrplus4), 1, wf->fptr) != 1) {
-     fprintf(stderr,"failed to read first 28 bytes of Wsr88d file");
-     return NULL;
-  }
-  if (fread(bzmagic, sizeof(bzmagic), 1, wf->fptr) != 1) {
-     fprintf(stderr,"failed to read bzip magic bytes from Wsr88d file");
-     return NULL;
-  }
-  // test for bzip2 magic.
-  if (strncmp("BZ",bzmagic,2) == 0) ar2v6bzip = 1;
-
-  fclose(wf->fptr);
-
-  // reopen the file
-  if ( strcmp(filename, "stdin") == 0 ) {
-     save_fd = dup(0);
-     wf->fptr = fdopen(save_fd,"r");
-  } else {
-     wf->fptr = fopen(filename, "r");
-  }
- 
-  // decompress
-  if(ar2v6bzip){
-     wf->fptr = uncompress_pipe_ar2v(wf->fptr);
-  }
-  else{
-     wf->fptr = uncompress_pipe(wf->fptr);
-  }
-
-  #define NEW_BUFSIZ 16384
+  wf->fptr = uncompress_pipe(wf->fptr);
+#define NEW_BUFSIZ 16384
   setvbuf(wf->fptr,NULL,_IOFBF,(size_t)NEW_BUFSIZ); /* Faster i/o? */
   return wf;
 }
@@ -365,13 +302,13 @@ void wsr88d_swap_file_header(Wsr88d_file_header *header)
 /*                                                                    */
 /**********************************************************************/
 int wsr88d_read_file_header(Wsr88d_file *wf,
-                            Wsr88d_file_header *wsr88d_file_header)
+							Wsr88d_file_header *wsr88d_file_header)
 {
   int n;
   n = fread(&wsr88d_file_header->title,
-            sizeof(wsr88d_file_header->title), 1, wf->fptr);
+			sizeof(wsr88d_file_header->title), 1, wf->fptr);
   if (little_endian())
-    wsr88d_swap_file_header(wsr88d_file_header);
+	wsr88d_swap_file_header(wsr88d_file_header);
   return n;
 }
 
@@ -381,38 +318,38 @@ int wsr88d_read_file_header(Wsr88d_file *wf,
 /*                                                                    */
 /**********************************************************************/
 int wsr88d_read_tape_header(char *first_file,
-                            Wsr88d_tape_header *wsr88d_tape_header)
+							Wsr88d_tape_header *wsr88d_tape_header)
 {
   FILE *fp;
   int n;
   char c;
 
   if ((fp = fopen(first_file, "r")) == NULL) {
-    perror(first_file);
-    return 0;
+	perror(first_file);
+	return 0;
   }
   
   n = fread(wsr88d_tape_header, sizeof(Wsr88d_tape_header), 1, fp);
   if (n == 0) {
-    fprintf(stderr, "WARNING: %s is smaller than 31616 bytes.  It is not a tape header file.\n", first_file);
-  } else {
-    /* Try to read one more character.  If we can, then this is not a 
-     * tape header file.  I suppose that we could look for '.' as the
-     * 9-th character and if it were there, then too this is not a tape
-     * header file.
-     */
-    if (fread(&c, sizeof(char), 1, fp) > 0) {
-      fprintf(stderr, "WARNING: %s is larger than 31616 bytes.  It is not a tape header file.\n", first_file);
-      memset(wsr88d_tape_header, 0, sizeof(Wsr88d_tape_header));
-      n = 0;
-    } else { /* Ok so far. Now check the first 8 bytes for "ARCHIVE2" */
-      if (strncmp(wsr88d_tape_header->archive2, "ARCHIVE2", 8) != 0) {
-        fprintf(stderr, "WARNING: %s is 31616 bytes.  However, the first 8 bytes are not 'ARCHIVE2'.\n", first_file);
-        memset(wsr88d_tape_header, 0, sizeof(Wsr88d_tape_header));
-        n = 0;
-      }
-    }
-    
+	fprintf(stderr, "WARNING: %s is smaller than 31616 bytes.  It is not a tape header file.\n", first_file);
+  }	else {
+	/* Try to read one more character.  If we can, then this is not a 
+	 * tape header file.  I suppose that we could look for '.' as the
+	 * 9-th character and if it were there, then too this is not a tape
+	 * header file.
+	 */
+	if (fread(&c, sizeof(char), 1, fp) > 0) {
+	  fprintf(stderr, "WARNING: %s is larger than 31616 bytes.  It is not a tape header file.\n", first_file);
+	  memset(wsr88d_tape_header, 0, sizeof(Wsr88d_tape_header));
+	  n = 0;
+	} else { /* Ok so far. Now check the first 8 bytes for "ARCHIVE2" */
+	  if (strncmp(wsr88d_tape_header->archive2, "ARCHIVE2", 8) != 0) {
+		fprintf(stderr, "WARNING: %s is 31616 bytes.  However, the first 8 bytes are not 'ARCHIVE2'.\n", first_file);
+		memset(wsr88d_tape_header, 0, sizeof(Wsr88d_tape_header));
+		n = 0;
+	  }
+	}
+	
   }
   fclose(fp);
   return n;
@@ -469,59 +406,58 @@ int wsr88d_read_sweep(Wsr88d_file *wf, Wsr88d_sweep *wsr88d_sweep)
 
 /* Step 1. */
   while ((wsr88d_ray.msg_type & 15) != 1 && n > 0) {
-    /*
-    fprintf(stderr,"SKIPPING packet: type %d, radial status %d\n",
-           wsr88d_ray.msg_type, wsr88d_ray.ray_status);
-    */
-    n = wsr88d_read_ray(wf, &wsr88d_ray);
+	/*
+	fprintf(stderr,"SKIPPING packet: type %d, radial status %d\n",
+		   wsr88d_ray.msg_type, wsr88d_ray.ray_status);
+	*/
+	n = wsr88d_read_ray(wf, &wsr88d_ray);
   }
     
   if (n <= 0) return n; /* Read failure. */
   end_of_volume = 0;
 /* Step 2. */
   while ( ! end_of_volume ) {
-    if ((wsr88d_ray.msg_type & 15) != 1) {
-      /*
-      fprintf(stderr,"SKIPPING (amid a sweep) packet: type %d, "
-            "radial status %d\n",
-             wsr88d_ray.msg_type, wsr88d_ray.ray_status);
-       */
+	if ((wsr88d_ray.msg_type & 15) != 1) {
+	  /*
+	  fprintf(stderr,"SKIPPING (amid a sweep) packet: type %d, "
+	  	    "radial status %d\n",
+			 wsr88d_ray.msg_type, wsr88d_ray.ray_status);
+	   */
 
-    } else {
-      /* Load this ray into the sweep. */
-      ray_num = wsr88d_ray.ray_num;
-      /* Double check against #  records we've seen. */
-      /* It is possible that a reset occurs and we begin to overwrite
-       * previously loaded rays.  I've seen this occur, rarely, in the
-       * WSR88D data.  I must trust 'ray_num'.
-       */
-      /*
-      if (nrec+1 != ray_num) {
-        fprintf(stderr, "Data says %d is ray_num, but, I've seen %d "
-                "records.\n", ray_num, nrec+1);
-      }
-      */
-      if (wsr88d_sweep->ray[ray_num] == NULL) {
-        wsr88d_sweep->ray[ray_num] = (Wsr88d_ray *) malloc (sizeof(Wsr88d_ray));
-      }
-      memcpy(wsr88d_sweep->ray[ray_num], &wsr88d_ray, sizeof(Wsr88d_ray));
-    }
-    n = wsr88d_read_ray(wf, &wsr88d_ray);
-    if (n > 0) nrec++;
+	} else {
+	  /* Load this ray into the sweep. */
+	  ray_num = wsr88d_ray.ray_num;
+	  /* Double check against #  records we've seen. */
+	  /* It is possible that a reset occurs and we begin to overwrite
+	   * previously loaded rays.  I've seen this occur, rarely, in the
+	   * WSR88D data.  I must trust 'ray_num'.
+	   */
+	  /*
+	  if (nrec+1 != ray_num) {
+		fprintf(stderr, "Data says %d is ray_num, but, I've seen %d "
+			    "records.\n", ray_num, nrec+1);
+	  }
+	  */
+	  if (wsr88d_sweep->ray[ray_num] == NULL) {
+		wsr88d_sweep->ray[ray_num] = (Wsr88d_ray *) malloc (sizeof(Wsr88d_ray));
+	  }
+	  memcpy(wsr88d_sweep->ray[ray_num], &wsr88d_ray, sizeof(Wsr88d_ray));
+	}
+	n = wsr88d_read_ray(wf, &wsr88d_ray);
+	if (n > 0) nrec++;
     end_of_volume = wsr88d_ray.ray_status == 2 ||
-                    wsr88d_ray.ray_status == 4 ||
-                    n <= 0;
+	                wsr88d_ray.ray_status == 4 ||
+		            n <= 0;
   }
 
   /* Process the last packet of the input data. */
-  if ((wsr88d_ray.ray_status == 2 || wsr88d_ray.ray_status == 4) &&
-	  (wsr88d_ray.msg_type & 15) == 1) {
-    /* Load this ray into the sweep. */
-    ray_num = wsr88d_ray.ray_num;
-    if (wsr88d_sweep->ray[ray_num] == NULL) {
-      wsr88d_sweep->ray[ray_num] = (Wsr88d_ray *) malloc (sizeof(Wsr88d_ray));
-    }
-    memcpy(wsr88d_sweep->ray[ray_num], &wsr88d_ray, sizeof(Wsr88d_ray));
+  if (wsr88d_ray.ray_status == 2 || wsr88d_ray.ray_status == 4) {
+	/* Load this ray into the sweep. */
+	ray_num = wsr88d_ray.ray_num;
+	if (wsr88d_sweep->ray[ray_num] == NULL) {
+	  wsr88d_sweep->ray[ray_num] = (Wsr88d_ray *) malloc (sizeof(Wsr88d_ray));
+	}
+	memcpy(wsr88d_sweep->ray[ray_num], &wsr88d_ray, sizeof(Wsr88d_ray));
   }
 
   /* Just to be safe, clear all ray pointers left in this sweep to
@@ -532,7 +468,7 @@ int wsr88d_read_sweep(Wsr88d_file *wf, Wsr88d_sweep *wsr88d_sweep)
   
 /*
   fprintf(stderr,"Processed %d records for elevation number %d\n",
-         nrec+1, wsr88d_ray.elev_num);
+		 nrec+1, wsr88d_ray.elev_num);
   wsr88d_print_sweep_info(wsr88d_sweep);
 */
   return nrec;
@@ -548,7 +484,7 @@ void wsr88d_swap_ray(Wsr88d_ray *wsr88d_ray)
   short *half_word;
   half_word = (short *)wsr88d_ray;
   for (; half_word<(short *)&wsr88d_ray->msg_time; half_word++)
-    swap_2_bytes(half_word);
+	swap_2_bytes(half_word);
 
   swap_4_bytes(&wsr88d_ray->msg_time);
   swap_2_bytes(&wsr88d_ray->num_seg);
@@ -557,13 +493,13 @@ void wsr88d_swap_ray(Wsr88d_ray *wsr88d_ray)
   
   half_word = (short *) &wsr88d_ray->ray_date;
   for (; half_word<(short *)&wsr88d_ray->sys_cal; half_word++)
-    swap_2_bytes(half_word);
+	swap_2_bytes(half_word);
 
   swap_4_bytes(&wsr88d_ray->sys_cal);
 
   half_word = (short *) &wsr88d_ray->refl_ptr;
   for (; half_word<(short *)&wsr88d_ray->data[0]; half_word++)
-    swap_2_bytes(half_word);
+	swap_2_bytes(half_word);
 
 }
 
@@ -578,7 +514,7 @@ int wsr88d_read_ray(Wsr88d_file *wf, Wsr88d_ray *wsr88d_ray)
   n = fread(wsr88d_ray, sizeof(Wsr88d_ray), 1, wf->fptr);
 /*  if (n > 0) print_packet_info(wsr88d_ray); */
   if (little_endian())
-    wsr88d_swap_ray(wsr88d_ray);
+	wsr88d_swap_ray(wsr88d_ray);
 
   return n;
 }
@@ -589,7 +525,7 @@ int wsr88d_read_ray(Wsr88d_file *wf, Wsr88d_ray *wsr88d_ray)
 /*                                                                    */
 /**********************************************************************/
 int wsr88d_read_ray_header(Wsr88d_file *wf,
-                           Wsr88d_ray_header *wsr88d_ray_header)
+						   Wsr88d_ray_header *wsr88d_ray_header)
 {
   fprintf(stderr,"Stub routine: wsr88d_read_ray_header.\n");
   return 0;
@@ -601,7 +537,7 @@ int wsr88d_read_ray_header(Wsr88d_file *wf,
 /*                                                                    */
 /**********************************************************************/
 int wsr88d_ray_to_float(Wsr88d_ray *ray,
-                        int THE_DATA_WANTED, float v[], int *n)
+						int THE_DATA_WANTED, float v[], int *n)
 {
 /*
  *  Input: *ray             -  WSR-88D packet
@@ -617,7 +553,7 @@ int wsr88d_ray_to_float(Wsr88d_ray *ray,
 
 /* Code from Dan Austin (cvt_pckt_data.c) was the template for this. */
 
-  /* declarations   */
+  /* declarations	*/
   int num_ref_gates,num_vel_gates,num_spec_gates;
   int refl_ptr, vel_ptr,spec_ptr,res_flag;
   int ival;
@@ -653,61 +589,61 @@ int wsr88d_ray_to_float(Wsr88d_ray *ray,
 */
 
   if (THE_DATA_WANTED == WSR88D_DZ) {
-    /* do the reflectivity data  (dbZ)*/
-    if (refl_ptr+num_ref_gates > 2300) 
-      fprintf(stderr, "WARNING: # refl index (%d) exceeds maximum (2300)\n",
-              refl_ptr+num_ref_gates);
-    else {
-    for(i=0; i<num_ref_gates; i++) {
-      ival = ray->data[refl_ptr+i];
-      if(ival > 1)
-          v[i] = (((ival-2.0)/2.0)-32.0);
-      else if (ival == 1) 
-        v[i] = WSR88D_RFVAL;
-      else /* ival = 0 */
-        v[i] = WSR88D_BADVAL;
-    }
-    *n = num_ref_gates;
-    }
+	/* do the reflectivity data  (dbZ)*/
+	if (refl_ptr+num_ref_gates > 2300) 
+	  fprintf(stderr, "WARNING: # refl index (%d) exceeds maximum (2300)\n",
+			  refl_ptr+num_ref_gates);
+	else {
+	for(i=0; i<num_ref_gates; i++) {
+	  ival = ray->data[refl_ptr+i];
+	  if(ival > 1)
+		  v[i] = (((ival-2.0)/2.0)-32.0);
+	  else if (ival == 1) 
+		v[i] = WSR88D_RFVAL;
+	  else /* ival = 0 */
+		v[i] = WSR88D_BADVAL;
+	}
+	*n = num_ref_gates;
+	}
 
   } else if (THE_DATA_WANTED == WSR88D_VR) {
-    /* do the velocity data  (M/S) */
-    if (vel_ptr+num_vel_gates > 2300) 
-      fprintf(stderr, "WARNING: # vel index (%d) exceeds maximum (2300)\n",
-              vel_ptr+num_vel_gates);
-    else {
-    for(i=0; i<num_vel_gates;i++)   {
-      ival = ray->data[vel_ptr+i];
-      if(ival > 1)
-        if (res_flag == 2) /* High resolution: 0.5 m/s */
-          v[i] = (((ival-2.0)/2.0)-63.5);
-        else
-          v[i] = ((ival-2.0)-127.0);
-      else if (ival == 1) 
-        v[i] = WSR88D_RFVAL;
-      else /* ival = 0 */
-        v[i] = WSR88D_BADVAL;
-    }
-    *n = num_vel_gates;
-    }
-    
+	/* do the velocity data  (M/S) */
+	if (vel_ptr+num_vel_gates > 2300) 
+	  fprintf(stderr, "WARNING: # vel index (%d) exceeds maximum (2300)\n",
+			  vel_ptr+num_vel_gates);
+	else {
+	for(i=0; i<num_vel_gates;i++)	{
+	  ival = ray->data[vel_ptr+i];
+	  if(ival > 1)
+		if (res_flag == 2) /* High resolution: 0.5 m/s */
+		  v[i] = (((ival-2.0)/2.0)-63.5);
+		else
+		  v[i] = ((ival-2.0)-127.0);
+	  else if (ival == 1) 
+		v[i] = WSR88D_RFVAL;
+	  else /* ival = 0 */
+		v[i] = WSR88D_BADVAL;
+	}
+	*n = num_vel_gates;
+	}
+	
   } else if (THE_DATA_WANTED == WSR88D_SW) {
-    /* now do the spectrum width data (M/S)*/
-    if (spec_ptr+num_spec_gates > 2300) 
-      fprintf(stderr, "WARNING: # spec index (%d) exceeds maximum (2300)\n",
-              spec_ptr+num_spec_gates);
-    else {
-    for(i=0;i<num_spec_gates;i++) {
-      ival = ray->data[spec_ptr+i];
-        if(ival > 1)
-          v[i] = (((ival-2)/2.0)-63.5);
-        else if (ival == 1) 
-          v[i] = WSR88D_RFVAL;
-        else /* ival = 0 */
-          v[i] = WSR88D_BADVAL;
-    }
-    *n = num_spec_gates;
-    }
+	/* now do the spectrum width data (M/S)*/
+	if (spec_ptr+num_spec_gates > 2300) 
+	  fprintf(stderr, "WARNING: # spec index (%d) exceeds maximum (2300)\n",
+			  spec_ptr+num_spec_gates);
+	else {
+	for(i=0;i<num_spec_gates;i++) {
+	  ival = ray->data[spec_ptr+i];
+		if(ival > 1)
+		  v[i] = (((ival-2)/2.0)-63.5);
+		else if (ival == 1) 
+		  v[i] = WSR88D_RFVAL;
+		else /* ival = 0 */
+		  v[i] = WSR88D_BADVAL;
+	}
+	*n = num_spec_gates;
+	}
   }
   
   return *n;
@@ -869,91 +805,91 @@ int *wsr88d_get_vcp_info(int vcp_num,int el_num)
 /*
  * This routine from Dan Austin.  Program component of nex2uf.
  */
-    static int vcp_info[4];
-    int fix_angle;
-    int pulse_cnt;
-    int az_rate;
-    int pulse_width;
+	static int vcp_info[4];
+	int fix_angle;
+	int pulse_cnt;
+	int az_rate;
+	int pulse_width;
 
-    /* case statement to get vcp info */
-    switch(vcp_num) {
-    case 11:
-      fix_angle =   vcp11[(3*el_num)-1];
-      pulse_cnt =   vcp11[(3*el_num)];
-      az_rate =     vcp11[(3*el_num)+1];
-      pulse_width = vcp11[1];
-      break;
-    case 12:
-      fix_angle =   vcp12[(3*el_num)-1];
-      pulse_cnt =   vcp12[(3*el_num)];
-      az_rate =     vcp12[(3*el_num)+1];
-      pulse_width = vcp12[1];
-      break;
-    case 21:
-      fix_angle =   vcp21[(3*el_num)-1];
-      pulse_cnt =   vcp21[(3*el_num)];
-      az_rate =     vcp21[(3*el_num)+1];
-      pulse_width = vcp21[1];
-      break;
-    case 31:
-      fix_angle =   vcp31[(3*el_num)-1];
-      pulse_cnt =   vcp31[(3*el_num)];
-      az_rate =     vcp31[(3*el_num)+1];
-      pulse_width = vcp31[1];
-      break;
-    case 32:
-      fix_angle =   vcp32[(3*el_num)-1];
-      pulse_cnt =   vcp32[(3*el_num)];
-      az_rate =     vcp32[(3*el_num)+1];
-      pulse_width = vcp32[1];
-      break;
-    case 300:
-      fix_angle =   vcp300[(3*el_num)-1];
-      pulse_cnt =   vcp300[(3*el_num)];
-      az_rate =     vcp300[(3*el_num)+1];
-      pulse_width = vcp300[1];
-      break;
-    case 121:
-      fix_angle =   vcp121[(3*el_num)-1];
-      pulse_cnt =   vcp121[(3*el_num)];
-      az_rate =     vcp121[(3*el_num)+1];
-      pulse_width = vcp121[1];
-      break;
-    case 211:
-      fix_angle =   vcp11[(3*el_num)-1];
-      pulse_cnt =   vcp11[(3*el_num)];
-      az_rate =     vcp11[(3*el_num)+1];
-      pulse_width = vcp11[1];
-      break;
-    case 212:
-      fix_angle =   vcp12[(3*el_num)-1];
-      pulse_cnt =   vcp12[(3*el_num)];
-      az_rate =     vcp12[(3*el_num)+1];
-      pulse_width = vcp12[1];
-      break;
-    case 221:
-      fix_angle =   vcp21[(3*el_num)-1];
-      pulse_cnt =   vcp21[(3*el_num)];
-      az_rate =     vcp21[(3*el_num)+1];
-      pulse_width = vcp21[1];
-      break;
-    default:
-      fix_angle  = 0;
-      pulse_cnt  = 0;
-      az_rate    = 0;
-      pulse_width= 0;
-      break;
-    }
-    
-    /* get array for output */
-    vcp_info[0]=fix_angle;
-    vcp_info[1]=pulse_cnt;
-    vcp_info[2]=az_rate;
-    vcp_info[3]=pulse_width;
-    
-    
-    /* return the value array   */
-    return(vcp_info);
+	/* case statement to get vcp info */
+	switch(vcp_num) {
+	case 11:
+	  fix_angle =   vcp11[(3*el_num)-1];
+	  pulse_cnt =   vcp11[(3*el_num)];
+	  az_rate =     vcp11[(3*el_num)+1];
+	  pulse_width = vcp11[1];
+	  break;
+	case 12:
+	  fix_angle =   vcp12[(3*el_num)-1];
+	  pulse_cnt =   vcp12[(3*el_num)];
+	  az_rate =     vcp12[(3*el_num)+1];
+	  pulse_width = vcp12[1];
+	  break;
+	case 21:
+	  fix_angle =   vcp21[(3*el_num)-1];
+	  pulse_cnt =   vcp21[(3*el_num)];
+	  az_rate =     vcp21[(3*el_num)+1];
+	  pulse_width = vcp21[1];
+	  break;
+	case 31:
+	  fix_angle =   vcp31[(3*el_num)-1];
+	  pulse_cnt =   vcp31[(3*el_num)];
+	  az_rate =     vcp31[(3*el_num)+1];
+	  pulse_width = vcp31[1];
+	  break;
+	case 32:
+	  fix_angle =   vcp32[(3*el_num)-1];
+	  pulse_cnt =   vcp32[(3*el_num)];
+	  az_rate =     vcp32[(3*el_num)+1];
+	  pulse_width = vcp32[1];
+	  break;
+	case 300:
+	  fix_angle =   vcp300[(3*el_num)-1];
+	  pulse_cnt =   vcp300[(3*el_num)];
+	  az_rate =     vcp300[(3*el_num)+1];
+	  pulse_width = vcp300[1];
+	  break;
+	case 121:
+	  fix_angle =   vcp121[(3*el_num)-1];
+	  pulse_cnt =   vcp121[(3*el_num)];
+	  az_rate =     vcp121[(3*el_num)+1];
+	  pulse_width = vcp121[1];
+	  break;
+	case 211:
+	  fix_angle =   vcp11[(3*el_num)-1];
+	  pulse_cnt =   vcp11[(3*el_num)];
+	  az_rate =     vcp11[(3*el_num)+1];
+	  pulse_width = vcp11[1];
+	  break;
+	case 212:
+	  fix_angle =   vcp12[(3*el_num)-1];
+	  pulse_cnt =   vcp12[(3*el_num)];
+	  az_rate =     vcp12[(3*el_num)+1];
+	  pulse_width = vcp12[1];
+	  break;
+	case 221:
+	  fix_angle =   vcp21[(3*el_num)-1];
+	  pulse_cnt =   vcp21[(3*el_num)];
+	  az_rate =     vcp21[(3*el_num)+1];
+	  pulse_width = vcp21[1];
+	  break;
+	default:
+	  fix_angle  = 0;
+	  pulse_cnt  = 0;
+	  az_rate    = 0;
+	  pulse_width= 0;
+	  break;
+	}
+	
+	/* get array for output	*/
+	vcp_info[0]=fix_angle;
+	vcp_info[1]=pulse_cnt;
+	vcp_info[2]=az_rate;
+	vcp_info[3]=pulse_width;
+	
+	
+	/* return the value array	*/
+	return(vcp_info);
 }
 
 
@@ -1023,8 +959,8 @@ float wsr88d_get_wavelength(Wsr88d_ray *ray)
 
   prf = wsr88d_get_prf(ray);
   nyquist = wsr88d_get_nyquist(ray);
-    /* If required info to determine wavelength does not exist,
-         just use 10 cm. All wsr88d radars are 10cm. MJK */
+	/* If required info to determine wavelength does not exist,
+		 just use 10 cm. All wsr88d radars are 10cm. MJK */
   if ((prf == 0) || (nyquist == 0.0)) wavelength = 0.10;
   else wavelength = 4*nyquist/prf;
   return wavelength;
@@ -1035,7 +971,8 @@ float wsr88d_get_frequency(Wsr88d_ray *ray)
   float freq;
   float c = 299792458.0;
 
-    /* Carrier freq (GHz). Revised 12 Jun 97. MJK */
-    freq = (c / wsr88d_get_wavelength(ray)) * 1.0e-9;
+	/* Carrier freq (GHz). Revised 12 Jun 97. MJK */
+	freq = (c / wsr88d_get_wavelength(ray)) * 1.0e-9;
   return freq;
 }
+

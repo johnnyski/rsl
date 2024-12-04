@@ -7,7 +7,7 @@
  * The directory should be the same as the LIBDIR in the makefile.
  */
 #ifndef WSR88D_SITE_INFO_FILE
-#define WSR88D_SITE_INFO_FILE "/home/kelley/trmm/lib/wsr88d_locations.dat"
+#define WSR88D_SITE_INFO_FILE "/usr/local/trmm/GVBOX/lib/wsr88d_locations.dat"
 #endif
 /*===============================================================*/
 typedef struct {
@@ -139,7 +139,8 @@ typedef struct radar_site {
 } Wsr88d_site_info;
 
 typedef struct {
-  FILE *fptr;
+  FILE *fptr;			/* this usually points to the gzip pipe */
+  FILE *orig;			/* save the original file pointer for cleanup */
 } Wsr88d_file;
 
 #define PACKET_SIZE 2432

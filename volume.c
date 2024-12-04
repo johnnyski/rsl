@@ -89,13 +89,10 @@ extern int radar_verbose_flag;
  * The conversion functions may NOT be macros.
  */
 
-/* Modification to properly convert DM field (DEK 21 Nov 2012) */
-
 #ifdef USE_TWO_BYTE_PRECISION
 #define F_FACTOR 100.0
 #define F_DR_FACTOR 1000.0
 #define F_DZ_RANGE_OFFSET 50
-#define F_DM_RANGE_OFFSET 130   /* DEK */
 #else
 #define F_FACTOR 2.0
 #define F_DR_FACTOR 10.0
@@ -124,18 +121,6 @@ float DZ_F(Range x) {
   if (x == 3) return NOECHO;
   return BADVAL;  /* Can't get here, but quiets the compiler. */
 }
-
-
-float DM_F(Range x) {
-  if (x >= F_OFFSET) /* This test works when Range is unsigned. */
-        return (((float)x-F_OFFSET)/F_FACTOR - F_DM_RANGE_OFFSET);  /* DEK  */
-  if (x == 0) return BADVAL;
-  if (x == 1) return RFVAL;
-  if (x == 2) return APFLAG;
-  if (x == 3) return NOECHO;
-  return BADVAL;  /* Can't get here, but quiets the compiler. */
-}
-
 
 float VR_F(Range x) {
   float val;
@@ -192,7 +177,7 @@ float HC_F(Range x) {  /* HydroClass (Sigmet) */
 float RH_F(Range x) {
   if (x == 0) return BADVAL;
   /* return (float)(sqrt((double)((x-1.0)/253.0))); */
-  return ((float)x-1.0) / 100.;
+  return (float)(x-1) / 65533.;
 }
 
 /***************************** 
@@ -207,7 +192,7 @@ float RH_F(Range x) {
 ******************************/
 float PH_F(Range x) {
   if (x == 0) return BADVAL;
-  /* Sigmet method */
+  /*return (float)(180.0*((x-1.0)/254.0));*/ 
   return (360.*(x-1.))/65534.;
  }
 
@@ -218,9 +203,29 @@ float rsl_kdp_wavelen = 0.5; /* Default radar wavelen = .5 cm.  See
 /* KD_F for 1 or 2 byte. */
 float KD_F(Range x)
 {
+/****** Commented-out code for 1-byte Sigmet native data format.
+  if (x >= F_OFFSET) {
+    x -= F_OFFSET;
+    if (rsl_kdp_wavelen == 0.0) return BADVAL;
+    if (x < 128)
+      return (float)(
+                     -0.25 * pow((double)600.0,(double)((127-x)/126.0))
+                     )/rsl_kdp_wavelen;
+    else if (x > 128)
+      return (float)(
+                      0.25 * pow((double)600.0,(double)((x-129)/126.0))
+                     )/rsl_kdp_wavelen;
+    else
+      return 0.0;
+  }
+  if (x == 1) return RFVAL;
+  if (x == 2) return APFLAG;
+  if (x == 3) return NOECHO;
+  return BADVAL;
+******/
+
   if (x == 0) return BADVAL;
-  /* Sigmet method */
-  return ((float)x-32768.)/100.;
+  return (x-32768.)/100.;
 }
 
 /* Normalized Coherent Power (DORADE) */
@@ -234,13 +239,7 @@ float NP_F(Range x)
 float SD_F(Range x)
 {
   if (x == 0) return BADVAL;
-  return ((float)x-1.) / 100.;
-}
-
-/* Signal to Noise Ratio */
-float SN_F(Range x) {
-  if (x == 0) return BADVAL;
-  return ((float)x-32768.)/100.;
+  return (float)x / 100.;
 }
 
 /* Signal Quality Index */
@@ -270,7 +269,7 @@ float MZ_F(Range x) {  return (float)x; } /* DZ Mask */
 float MD_F(Range x) {  return MZ_F(x); }  /* ZD Mask */
 float ZE_F(Range x) {  return DZ_F(x); }
 float VE_F(Range x) {  return VR_F(x); }
-/* float DM_F(Range x) {  return DZ_F(x); }   DEK */
+float DM_F(Range x) {  return DZ_F(x); }
 float DX_F(Range x) {  return DZ_F(x); }
 float CH_F(Range x) {  return DZ_F(x); }
 float AH_F(Range x) {  return DZ_F(x); }
@@ -298,16 +297,6 @@ Range DZ_INVF(float x)
   if (x < -F_DZ_RANGE_OFFSET) return (Range)0;
   return (Range)(F_FACTOR*(x+F_DZ_RANGE_OFFSET)+.5 + F_OFFSET); /* Default wsr88d. */
 }
-
-Range DM_INVF(float x)
-{
-  if (x == BADVAL) return (Range)0;
-  if (x == RFVAL)  return (Range)1;
-  if (x == APFLAG)  return (Range)2;
-  if (x == NOECHO)  return (Range)3;
-  return (Range)(F_FACTOR*(x+F_DM_RANGE_OFFSET)+.5 + F_OFFSET); /* DEK  */
-}
-
 
 Range VR_INVF(float x)
 {
@@ -358,7 +347,7 @@ Range LR_INVF(float x) /* MCTEX */
 Range RH_INVF(float x) {
   if (x == BADVAL) return (Range)0;
   /* return (Range)(x * x * 253.0 + 1.0 + 0.5); */
-  return (Range)(x * 100. + 1. +.5);
+  return (Range)(x * 65533. + 1. +.5);
 }
 
 /******************************
@@ -373,6 +362,7 @@ Range RH_INVF(float x) {
 *******************************/
 Range PH_INVF(float x) {
   if (x == BADVAL) return (Range)0;
+  /* return (Range)((x / 180.0) * 254.0 + 1.0 + 0.5); */
   return (Range)(x*65534./360. + 1.0 + 0.5);
 }
 
@@ -381,19 +371,33 @@ Range PH_INVF(float x) {
 Range KD_INVF(float x) {
   if (x == BADVAL) return (Range)0;
   return (Range)(x * 100. + 32768. + 0.5);
+/****** Old code for 1-byte Sigmet native data format commented-out:
+  if (x == RFVAL)  return (Range)1;
+  if (x == APFLAG)  return (Range)2;
+  if (x == NOECHO)  return (Range)3;
+  if (rsl_kdp_wavelen == 0.0) return (Range)0;
+  if (x < 0) {
+    x = 127 - 
+      126 * (log((double)-x) - log((double)(0.25/rsl_kdp_wavelen))) /
+      log((double)600.0) +
+      0.5;
+  } else if (x > 0) {
+    x = 129 + 
+      126 * (log((double)x) - log((double)0.25/rsl_kdp_wavelen)) /
+      log((double)600.0) +
+      0.5;
+  } else {
+    x = 128;
+  }
+  x += F_OFFSET;
+******/
 }
 
 /* Standard Deviation (for Dual-pole QC testing.) */
 Range SD_INVF(float x)
 {
   if (x == BADVAL) return (Range)0;
-  return (Range)(x * 100. + 1. + .5);
-}
-
-/* Signal to Noise Ratio */
-Range SN_INVF(float x) {
-  if (x == BADVAL) return (Range)0;
-  return (Range)(x * 100. + 32768. + 0.5);
+  return (Range)(x * 100.);
 }
 
 /* Signal Quality Index */
@@ -430,7 +434,7 @@ Range MZ_INVF(float x) {  return (Range)x;   } /* DZ Mask */
 Range MD_INVF(float x) {  return MZ_INVF(x); } /* ZD Mask */
 Range ZE_INVF(float x) {  return DZ_INVF(x); }
 Range VE_INVF(float x) {  return VR_INVF(x); }
-/* Range DM_INVF(float x) {  return DZ_INVF(x); }  DEK */
+Range DM_INVF(float x) {  return DZ_INVF(x); }
 Range DX_INVF(float x) {  return DZ_INVF(x); }
 Range CH_INVF(float x) {  return DZ_INVF(x); }
 Range AH_INVF(float x) {  return DZ_INVF(x); }
@@ -694,7 +698,6 @@ void RSL_free_volume(Volume *v)
      RSL_free_sweep(v->sweep[i]);
      }
   if (v->sweep) free(v->sweep);
-  if (v->h.type_str) free(v->h.type_str);
   free(v);
 }
 
@@ -1393,7 +1396,6 @@ Sweep *RSL_get_first_sweep_of_volume(Volume *v)
 
 /* Could be static and force use of 'rsl_query_field' */
 int rsl_qfield[MAX_RADAR_VOLUMES] = {
-  1, 1, 1, 1, 1,
   1, 1, 1, 1, 1,
   1, 1, 1, 1, 1,
   1, 1, 1, 1, 1,

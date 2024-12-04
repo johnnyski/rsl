@@ -6,20 +6,18 @@
 	    SSAI
 	    Lanham, Maryland
 
-    This library is free software; you can redistribute it and/or
-    modify it under the terms of the GNU Library General Public
-    License as published by the Free Software Foundation; either
-    version 2 of the License, or (at your option) any later version.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-    This library is distributed in the hope that it will be useful,
+    This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Library General Public License for more details.
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-    You should have received a copy of the GNU Library General Public
-    License along with this library; if not, write to the
-    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
-    Boston, MA  02110-1301, USA.
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
@@ -104,6 +102,9 @@ typedef struct {
 } Wsr88d_ray_m31;
 
 
+enum radial_status {START_OF_ELEV, INTERMED_RADIAL, END_OF_ELEV, BEGIN_VOS,
+    END_VOS};
+
 
 void wsr88d_swap_m31_hdr(Wsr88d_msg_hdr *msghdr)
 {
@@ -182,7 +183,7 @@ float wsr88d_get_azim_rate(short bitfield)
     return rate;
 }
 
-#define WSR88D_MAX_SWEEPS 30
+#define WSR88D_MAX_SWEEPS 20
 
 typedef struct {
     int vcp;
@@ -345,7 +346,6 @@ void wsr88d_load_ray_hdr(Wsr88d_ray_m31 *wsr88d_ray, Ray *ray)
     m1_ray.vol_cpat = vcp_data.vcp;
     m1_ray.elev_num = ray_hdr.elev_num;
     m1_ray.unam_rng = (short) (wsr88d_ray->unamb_rng * 10.);
-    m1_ray.nyq_vel = (short) wsr88d_ray->nyq_vel;
     /* Get values from message type 1 routines. */
     ray->h.frequency = wsr88d_get_frequency(&m1_ray);
     ray->h.pulse_width = wsr88d_get_pulse_width(&m1_ray);
@@ -367,8 +367,9 @@ int wsr88d_get_vol_index(char* dataname)
     return -1;
 }
 
+
 #define MAXRAYS_M31 800
-#define MAXSWEEPS 30
+#define MAXSWEEPS 20
 
 void wsr88d_load_ray_into_radar(Wsr88d_ray_m31 *wsr88d_ray, int isweep,
 	Radar *radar)
@@ -391,15 +392,13 @@ void wsr88d_load_ray_into_radar(Wsr88d_ray_m31 *wsr88d_ray, int isweep,
     float (*f)(Range x);
     Ray *ray;
     int vol_index, waveform;
+    char *type_str;
 
-    extern int rsl_qfield[]; /* See RSL_select_fields in volume.c */
+    int keep_hi_prf_dz = 0; /* TODO: make this an argument. */
 
     enum waveforms {surveillance=1, doppler_w_amb_res, doppler_no_amb_res,
 	batch};
 
-    int merging_split_cuts;
-
-    merging_split_cuts =  wsr88d_merge_split_cuts_is_set();
     nfields = wsr88d_ray->ray_hdr.data_block_count - nconstblocks;
     field_offset = (int *) &wsr88d_ray->ray_hdr.radial_const;
     do_swap = little_endian();
@@ -421,32 +420,30 @@ void wsr88d_load_ray_into_radar(Wsr88d_ray_m31 *wsr88d_ray, int isweep,
 		    iray);
 	    return;
 	}
-
-	/* Is this field in the selected fields list? */
-	if (!rsl_qfield[vol_index]) continue;
-
 	switch (vol_index) {
-	    case DZ_INDEX: f = DZ_F; invf = DZ_INVF; break;
-	    case VR_INDEX: f = VR_F; invf = VR_INVF; break;
-	    case SW_INDEX: f = SW_F; invf = SW_INVF; break;
-	    case DR_INDEX: f = DR_F; invf = DR_INVF; break;
-	    case PH_INDEX: f = PH_F; invf = PH_INVF; break;
-	    case RH_INDEX: f = RH_F; invf = RH_INVF; break;
+	    case DZ_INDEX: f = DZ_F; invf = DZ_INVF;
+		 type_str = "Reflectivity"; break;
+	    case VR_INDEX: f = VR_F; invf = VR_INVF;
+		 type_str = "Velocity"; break;
+	    case SW_INDEX: f = SW_F; invf = SW_INVF;
+		 type_str = "Spectrum width"; break;
+	    case DR_INDEX: f = DR_F; invf = DR_INVF;
+		 type_str = "Diff. Reflectivity"; break;
+	    case PH_INDEX: f = PH_F; invf = PH_INVF;
+		 type_str = "Diff. Phase"; break;
+	    case RH_INDEX: f = RH_F; invf = RH_INVF;
+		 type_str = "Correlation Coef (Rho)"; break;
 	}
 
 	waveform = vcp_data.waveform[isweep];
 
-	/* If this field is reflectivity, check to see if it's from the velocity
-         * sweep in a split cut.  If so, we normally skip it since we already
-         * have reflectivity from the surveillance sweep.  It is kept only when
-         * the user has turned off merging of split cuts.  We skip over this
-         * field if all of the following are true: surveillance PRF number is 0,
-         * waveform is Contiguous Doppler with Ambiguity Resolution (range
-         * unfolding), and we're merging split cuts.
+	/* Ignore short-range reflectivity from velocity split cuts unless
+	 * merging of split cuts is suppressed.  The indicators for this type of
+	 * reflectivity are surveillance mode is 0 and elevation angle is
+	 * below 6 degrees.
 	 */
 	if (vol_index == DZ_INDEX && (vcp_data.surveil_prf_num[isweep] == 0 &&
-		    vcp_data.waveform[isweep] == doppler_w_amb_res &&
-		    merging_split_cuts))
+		    vcp_data.fixed_angle[isweep] < 6.0 && !keep_hi_prf_dz))
 	    continue;
 
 	/* Load the data for this field. */
@@ -454,30 +451,7 @@ void wsr88d_load_ray_into_radar(Wsr88d_ray_m31 *wsr88d_ray, int isweep,
 	    radar->v[vol_index] = RSL_new_volume(MAXSWEEPS);
 	    radar->v[vol_index]->h.f = f;
 	    radar->v[vol_index]->h.invf = invf;
-            switch (vol_index) {
-                case DZ_INDEX:
-                    radar->v[vol_index]->h.type_str = strdup("Reflectivity");
-                    break;
-                case VR_INDEX:
-                    radar->v[vol_index]->h.type_str = strdup("Velocity");
-                    break;
-                case SW_INDEX:
-                    radar->v[vol_index]->h.type_str = strdup("Spectrum width");
-                    break;
-                case DR_INDEX:
-                    radar->v[vol_index]->h.type_str = strdup("Differential "
-                        "Reflectivity");
-                    break;
-                case PH_INDEX:
-                    radar->v[vol_index]->h.type_str = strdup("Differential "
-                        "Phase (PhiDP)");
-                    break;
-                case RH_INDEX:
-                    radar->v[vol_index]->h.type_str = strdup("Correlation "
-                        "Coefficient (RhoHV)");
-                    break;
-            }
-	   
+	    radar->v[vol_index]->h.type_str = type_str;
 	}
 	if (radar->v[vol_index]->sweep[isweep] == NULL) {
 	    radar->v[vol_index]->sweep[isweep] = RSL_new_sweep(MAXRAYS_M31);
@@ -552,38 +526,35 @@ Radar *wsr88d_load_m31_into_radar(Wsr88d_file *wf)
     short non31_seg_remainder[1202]; /* Remainder after message header */
     int end_of_vos = 0, isweep = 0;
     int msg_hdr_size, msg_size, n;
-    int prev_elev_num = 1, prev_raynum = 0, raynum = 0;
+    int sweep_hdrs_written = 0, prev_elev_num = 1, prev_raynum = 0, raynum = 0;
     Radar *radar = NULL;
-    enum radial_status {START_OF_ELEV, INTERMED_RADIAL, END_OF_ELEV, BEGIN_VOS,
-        END_VOS};
 
-
-    /* Message type 31 is a variable length message.  All other types consist of
-     * 1 or more segments of length 2432 bytes.  To handle all types, we read
-     * the message header and check the type.  If not 31, then simply read
-     * the remainder of the 2432-byte segment.  If it is 31, use the size given
-     * in message header to determine how many bytes to read.
+    /* Message type 31 is a variable length message.  All other types are made
+     * up of 1 or more segments, where each segment is 2432 bytes in length.
+     * To handle these differences, read the message header and check its type.
+     * If it is 31, use the size given in the message header to determine the
+     * number of bytes to read.  If not, simply read the remainder of the
+     * 2432-byte segment.
      */
 
-    bzero(&msghdr, sizeof(msghdr));
     n = fread(&msghdr, sizeof(Wsr88d_msg_hdr), 1, wf->fptr);
 
     /* printf("msgtype = %d\n", msghdr.msg_type); */
     msg_hdr_size = sizeof(Wsr88d_msg_hdr) - sizeof(msghdr.rpg);
 
     radar = RSL_new_radar(MAX_RADAR_VOLUMES);
-    memset(&wsr88d_ray, 0, sizeof(Wsr88d_ray_m31)); /* Initialize to be safe. */
 
     while (! end_of_vos) {
 	if (msghdr.msg_type == 31) {
 	    if (little_endian()) wsr88d_swap_m31_hdr(&msghdr);
 
 	    /* Get size of the remainder of message.  The given size is in
-	     * halfwords; convert it to bytes.
+	     * halfwords, but we want it in bytes, so double it.
 	     */
 	    msg_size = (int) msghdr.msg_size * 2 - msg_hdr_size;
 
 	    n = read_wsr88d_ray_m31(wf, msg_size, &wsr88d_ray);
+	    /* Assume error message was issued from read routine */
 	    if (n <= 0) return NULL;
 	    raynum = wsr88d_ray.ray_hdr.azm_num;
 	    if (raynum > MAXRAYS_M31) {
@@ -595,37 +566,24 @@ Radar *wsr88d_load_m31_into_radar(Wsr88d_file *wf)
 	    }
 
 	    /* Check for an unexpected start of new elevation, and issue a
-	     * warning if this has occurred.  This condition usually means
-	     * less rays then expected in the sweep that just ended.
+	     * warning if this has occurred.  This usually means less rays than
+	     * expected.  It happens, but rarely.
 	     */
 	    if (wsr88d_ray.ray_hdr.radial_status == START_OF_ELEV &&
-		    wsr88d_ray.ray_hdr.elev_num-1 > isweep) {
+		    sweep_hdrs_written != prev_elev_num) {
 		fprintf(stderr,"Warning: Radial status is Start-of-Elevation, "
 			"but End-of-Elevation was not\n"
 			"issued for elevation number %d.  Number of rays = %d"
 			"\n", prev_elev_num, prev_raynum);
 		wsr88d_load_sweep_header(radar, isweep);
 		isweep++;
+		sweep_hdrs_written++;
 		prev_elev_num = wsr88d_ray.ray_hdr.elev_num - 1;
 	    }
-
-            /* Check if this sweep number exceeds how many we allocated */
-            if (isweep > MAXSWEEPS) {
-		fprintf(stderr,"Error: isweep = %d, exceeds MAXSWEEPS (%d)\n", isweep, MAXSWEEPS);
-		RSL_free_radar(radar);
-		return NULL;                
-            }
 
 	    /* Load ray into radar structure. */
 	    wsr88d_load_ray_into_radar(&wsr88d_ray, isweep, radar);
 	    prev_raynum = raynum;
-
-	    /* Check for end of sweep */
-	    if (wsr88d_ray.ray_hdr.radial_status == END_OF_ELEV) {
-		wsr88d_load_sweep_header(radar, isweep);
-		isweep++;
-		prev_elev_num = wsr88d_ray.ray_hdr.elev_num;
-	    }
 	}
 	else { /* msg_type not 31 */
 	    n = fread(&non31_seg_remainder, sizeof(non31_seg_remainder), 1,
@@ -647,24 +605,33 @@ Radar *wsr88d_load_m31_into_radar(Wsr88d_file *wf)
 	    }
 	}
 
+	/* Check for end of sweep */
+	if (wsr88d_ray.ray_hdr.radial_status == END_OF_ELEV) {
+	    wsr88d_load_sweep_header(radar, isweep);
+	    isweep++;
+	    sweep_hdrs_written++;
+	    prev_elev_num = wsr88d_ray.ray_hdr.elev_num;
+	}
+
 	/* If not at end of volume scan, read next message header. */
 	if (wsr88d_ray.ray_hdr.radial_status != END_VOS) {
 	    n = fread(&msghdr, sizeof(Wsr88d_msg_hdr), 1, wf->fptr);
 	    if (n < 1) {
 		fprintf(stderr,"Warning: load_wsr88d_m31_into_radar: ");
-		if (feof(wf->fptr) != 0)
-		    fprintf(stderr,"Unexpected end of file.\n");
+		if (feof(wf->fptr) != 0) fprintf(stderr,
+			"Unexpected end of file.\n");
 		else fprintf(stderr,"Failed reading msghdr.\n");
 		fprintf(stderr,"Current sweep index: %d\n"
 			"Last ray read: %d\n", isweep, prev_raynum);
 		wsr88d_load_sweep_header(radar, isweep);
-		end_of_vos = 1;
+		return radar;
 	    }
 	}
 	else {
 	    end_of_vos = 1;
 	    wsr88d_load_sweep_header(radar, isweep);
 	}
+	if (feof(wf->fptr) != 0) end_of_vos = 1;
     }  /* while not end of vos */
 
     return radar;

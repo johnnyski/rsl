@@ -17,12 +17,12 @@ void usage(char **argv)
 
 /**********************************************************************/
 /*                                                                    */
-/*                        subtract_one_day                            */
+/*                        subtract_one_day_ray                        */
 /*                                                                    */
 /**********************************************************************/
 #include<time.h>
-void    subtract_one_day(int month, int day, int year,
-                          int *m, int *d, int *y)
+void    *subtract_one_day(int month, int day, int year,
+						  int *m, int *d, int *y)
 {
   /* Connocialize and subtract. */
   struct tm *t;
@@ -49,7 +49,7 @@ Ray    *subtract_one_day_ray(Ray *x)
 {
   if (x == NULL) return x;
   subtract_one_day(x->h.month, x->h.day, x->h.year,
-                   &x->h.month, &x->h.day, &x->h.year);
+				   &x->h.month, &x->h.day, &x->h.year);
   return x;
 }
 /**********************************************************************/
@@ -63,7 +63,7 @@ Sweep  *subtract_one_day_sweep(Sweep *x)
 
   if (x == NULL) return x;
   for(i=0; i<x->h.nrays; i++)
-    x->ray[i] = subtract_one_day_ray(x->ray[i]);
+	x->ray[i] = subtract_one_day_ray(x->ray[i]);
   return x;
 }
 /**********************************************************************/
@@ -77,7 +77,7 @@ Volume *subtract_one_day_volume(Volume *x)
 
   if (x == NULL) return x;
   for(i=0; i<x->h.nsweeps; i++)
-    x->sweep[i] = subtract_one_day_sweep(x->sweep[i]);
+	x->sweep[i] = subtract_one_day_sweep(x->sweep[i]);
   return x;
 }
 /**********************************************************************/
@@ -91,7 +91,7 @@ Radar  *subtract_one_day_radar(Radar *x)
 
   if (x == NULL) return x;
   for(i=0; i<x->h.nvolumes; i++)
-    x->v[i] = subtract_one_day_volume(x->v[i]);
+	x->v[i] = subtract_one_day_volume(x->v[i]);
   return x;
 }
   
@@ -108,14 +108,14 @@ int main(int argc, char **argv)
   Radar *radar;
 
   if (argc != 3) {
-    usage(argv);
-    exit(-1);
+	usage(argv);
+	exit(-1);
   }
 
   radar = RSL_anyformat_to_radar(argv[1]);
   radar = subtract_one_day_radar(radar);
   subtract_one_day(radar->h.month, radar->h.day, radar->h.year,
-                   &radar->h.month, &radar->h.day, &radar->h.year);
+				   &radar->h.month, &radar->h.day, &radar->h.year);
   RSL_radar_to_uf_gzip(radar, argv[2]);
 
   exit(0);

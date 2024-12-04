@@ -84,7 +84,6 @@ FILE *uncompress_pipe (FILE *fp)
   close(0);
   dup(save_fd);
   close(save_fd);
-  fclose(fp);
   return fpipe;
 }
 

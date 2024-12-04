@@ -162,7 +162,6 @@ RSL_nsig_to_radar
   int sweep_sec;
   int z_flag_unc, z_flag_cor, v_flag, w_flag, speckle;
   int ant_scan_mode;
-  int nsig_error = 0;
   float second;
   float pw;
   float bin_space;
@@ -175,10 +174,9 @@ RSL_nsig_to_radar
   float max_vel, sweep_rate, azim_rate;
   float ray_data;
   float az1, az2;
-  float elev1, elev2;
   double tmp;
   float sqi, log, csr, sig, cal_dbz;
-  char radar_type[50], state[4], city[15];
+  char radar_type[50], state[2], city[15];
   char site_name[16];
   NSIG_Product_file *prod_file;
   short id;
@@ -192,11 +190,9 @@ RSL_nsig_to_radar
   twob nsig_twob;
   Sweep *sweep;
   int msec;
-  const unsigned short low10bits = 0x3ff;
   float azm, elev, pitch, roll, heading, azm_rate, elev_rate,
     pitch_rate, roll_rate, heading_rate,
     lat, lon;
-  float fix_angle;
   int alt;  /* Altitude */
   float rvc;  /* Radial correction velocity m/s */
   float vel_east, vel_north, vel_up; /* Platform velocity vectors m/sec */
@@ -480,9 +476,6 @@ RSL_nsig_to_radar
    radar->h.height = (int)sea_lvl_hgt;
    radar->h.spulse = (int)(pw*1000);
    radar->h.lpulse = (int)(pw*1000);
-   ant_scan_mode = NSIG_I2(prod_file->rec2.task_config.scan_info.ant_scan_mode);
-   if(ant_scan_mode == 2 || ant_scan_mode == 7) radar->h.scan_mode = RHI;
-   else radar->h.scan_mode = PPI;
 
    if (radar_verbose_flag) {
 #ifdef NSIG_VER2
@@ -506,9 +499,9 @@ RSL_nsig_to_radar
    if (radar_verbose_flag) fprintf(stderr, "Expecting %d sweeps.\n", numsweep);
    for(i = 0; i < numsweep; i++)
       {
-        nsig_sweep = nsig_read_sweep(fp, prod_file, &nsig_error);
+        nsig_sweep = nsig_read_sweep(fp, prod_file);
         if (nsig_sweep == NULL) { /* EOF possibility */
-          if (feof(fp) || nsig_error) break;
+          if (feof(fp)) break;
           else continue;
         }
         if (rsl_qsweep != NULL) {
@@ -530,7 +523,7 @@ RSL_nsig_to_radar
       sweep_day = NSIG_I2(nsig_sweep[itype]->idh.time.day);
       sweep_sec = NSIG_I4(nsig_sweep[itype]->idh.time.sec);
 #ifdef NSIG_VER2
-      msec = NSIG_I2(nsig_sweep[itype]->idh.time.msec) & low10bits;
+      msec      = NSIG_I2(nsig_sweep[itype]->idh.time.msec);
       /*      printf("....... msec == %d\n", msec); */
 #endif
       /* converting seconds since mid to time of day */
@@ -626,41 +619,14 @@ RSL_nsig_to_radar
         ifield = HC_INDEX;
         f      = HC_F; 
         invf   = HC_INVF;
-        break;
       case NSIG_DTB_DBZ2:
         ifield = CZ_INDEX;
         f      = CZ_F; 
         invf   = CZ_INVF;
-        break;
       case NSIG_DTB_ZDRC2:
         ifield = ZD_INDEX;
         f      = ZD_F; 
         invf   = ZD_INVF;
-        break;
-      case NSIG_DTB_DBTE8:
-        ifield = ET_INDEX;
-        f      = ZT_F; 
-        invf   = ZT_INVF;
-        break;
-      case NSIG_DTB_DBZE8:
-        ifield = EZ_INDEX;
-        f      = DZ_F; 
-        invf   = DZ_INVF;
-        break;
-      case NSIG_DTB_DBTV2:
-        ifield = TV_INDEX;
-        f      = ZT_F; 
-        invf   = ZT_INVF;
-        break;
-      case NSIG_DTB_DBZV2:
-        ifield = ZV_INDEX;
-        f      = DZ_F; 
-        invf   = DZ_INVF;
-        break;
-      case NSIG_DTB_SNR2:
-        ifield = SN_INDEX;
-        f      = SN_F; 
-        invf   = SN_INVF;
         break;
       default:
         fprintf(stderr,"Unknown field type: %d  Skipping it.\n", data_type);
@@ -699,9 +665,8 @@ RSL_nsig_to_radar
       sweep->h.beam_width = beam_width;
       sweep->h.vert_half_bw = vert_half_bw;
       sweep->h.horz_half_bw = horz_half_bw;
-      fix_angle = nsig_from_bang(nsig_sweep[itype]->idh.fix_ang);
-      if (radar->h.scan_mode == PPI) sweep->h.elev = fix_angle;
-      else sweep->h.azimuth = fix_angle;
+      elev = nsig_from_bang(nsig_sweep[itype]->idh.fix_ang);
+      sweep->h.elev = elev;
       
       for(j = 0; j < num_rays; j++)
         {
@@ -757,7 +722,7 @@ RSL_nsig_to_radar
             else
               ray->h.unam_rng = 0.0;
           ray->h.prf2 = (int) prf2;
-          ray->h.fix_angle = fix_angle;
+          ray->h.fix_angle = (float)sweep->h.elev;
           ray->h.azim_rate  = azim_rate;
           ray->h.pulse_count = num_samples;
           ray->h.pulse_width = pw;
@@ -766,7 +731,7 @@ RSL_nsig_to_radar
           ray->h.wavelength  = wave/100.0;     /* meters */
           ray->h.nyq_vel     = max_vel;        /* m/s */
           if (elev == 0.) elev = sweep->h.elev;
-
+          ray->h.elev        = (nsig_from_bang(ray_p->h.end_elev)+nsig_from_bang(ray_p->h.beg_elev))/2.0;
           /* Compute mean azimuth angle for ray. */
           az1 = nsig_from_bang(ray_p->h.beg_azm);
           az2 = nsig_from_bang(ray_p->h.end_azm);
@@ -781,21 +746,6 @@ RSL_nsig_to_radar
           az1 = (az1 + az2) / 2.0;
           if (az1 > 360) az1 -= 360;
           ray->h.azimuth     = az1;
-
-          /* Compute mean elevation angle for ray. */
-          elev1 = nsig_from_bang(ray_p->h.beg_elev);
-          elev2 = nsig_from_bang(ray_p->h.end_elev);
-          /*          printf("elev1, %f, elev2 %f\n", elev1, elev2); */
-          if(elev1 > elev2)
-            if((elev1 - elev2) > 180.0) elev2 += 360.0;
-            else
-              ;
-          else
-            if((elev2 - elev1) > 180.0) elev2 -= 360.0;
-
-          elev1 = (elev1 + elev2) / 2.0;
-          if (elev1 > 360) elev1 -= 360;
-          ray->h.elev = elev1;
 
           /* From the extended header information, we learn the following. */
           ray->h.pitch        = pitch;
@@ -827,8 +777,6 @@ RSL_nsig_to_radar
             switch(data_type) {
             case NSIG_DTB_UCR:
             case NSIG_DTB_CR:
-            case NSIG_DTB_DBTE8:
-            case NSIG_DTB_DBZE8:
               if (ray_p->range[k] == 0) ray_data = NSIG_NO_ECHO;
               else ray_data = (float)((ray_p->range[k]-64.0)/2.0);
               break;
@@ -908,9 +856,6 @@ RSL_nsig_to_radar
             case NSIG_DTB_VELC2:
             case NSIG_DTB_ZDR2:
             case NSIG_DTB_KDP2:
-            case NSIG_DTB_DBTV2:
-            case NSIG_DTB_DBZV2:
-            case NSIG_DTB_SNR2:
 	      memmove(nsig_twob, &ray_p->range[2*k], 2);
 	      nsig_2byte = NSIG_I2(nsig_twob);
 	      if (nsig_2byte == 0 || nsig_2byte == 65535)
@@ -979,9 +924,6 @@ RSL_nsig_to_radar
    nsig_close(fp);
 
    radar = RSL_prune_radar(radar);
-
-   if (nsig_error) fprintf(stderr,"RSL_nsig_to_radar: Ending with error.\n");
-
    /** return radar pointer **/
    return radar;
 }

@@ -268,7 +268,6 @@ main(int argc, char **argv) {
             radar->h.year, radar->h.month, radar->h.day, 
             radar->h.hour, radar->h.minute);
 
-    if (radar->h.vcp > 0) printf("VCP %d\n", radar->h.vcp);
 /* 
    Print the radar/volume info.
 */
